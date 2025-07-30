@@ -64,6 +64,55 @@ def remove_outliers_iqr(df, column_name):
         st.warning(f"분석의 정확도를 위해 시장 데이터의 단가(Unit Price) 이상치 {removed_rows}건을 제거했습니다.")
     return df_filtered
 
+def generate_summary_table_html(df, group_by_col, header_name, value_col='unit_price'):
+    """박스플롯에 대한 요약 테이블 HTML을 생성하는 함수"""
+    if df.empty:
+        return "<p>요약할 데이터가 없습니다.</p>"
+    summary_df = df.groupby(group_by_col)[value_col].agg(['max', 'mean', 'min']).reset_index()
+    
+    html = f"""
+    <style>
+        .summary-table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        .summary-table th, .summary-table td {{
+            border: 1px solid #e6e6e6;
+            padding: 8px;
+            text-align: left;
+        }}
+        .summary-table th {{
+            background-color: #f2f2f2;
+        }}
+    </style>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th rowspan="2" style="text-align: center; vertical-align: middle;">{header_name}</th>
+          <th colspan="3" style="text-align: center;">수입 단가(USD/KG)</th>
+        </tr>
+        <tr>
+          <th style="text-align: center;">최대</th>
+          <th style="text-align: center;">평균</th>
+          <th style="text-align: center;">최소</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+
+    for index, row in summary_df.iterrows():
+        html += f"""
+        <tr>
+            <td>{row[group_by_col]}</td>
+            <td style="text-align: right;">${row['max']:.2f}</td>
+            <td style="text-align: right;">${row['mean']:.2f}</td>
+            <td style="text-align: right;">${row['min']:.2f}</td>
+        </tr>
+        """
+    
+    html += "</tbody></table>"
+    return html
+
 def reset_analysis_states():
     """모든 분석 상태를 초기화하는 함수"""
     st.session_state.analysis_done = False
@@ -342,22 +391,16 @@ if selected == "시장 경쟁력 분석":
                     st.info(f"참고: **{customer_name}**의 구매 경쟁력 순위는 전체 {len(all_competitors_ranked)}개사 중 **{customer_rank}위**입니다.")
 
         with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
-            # --- 구매 경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
             st.markdown("##### 구매 경쟁력 지수 월별 추이")
-            st.caption("구매 경쟁력 = (시장 기대 가격) - (실제 구매 가격)")
-            
             monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
             
             market_avg_monthly_comp = monthly_competitiveness.mean(axis=1)
             customer_monthly_comp = monthly_competitiveness.get(customer_name)
             
             fig_comp_trend = go.Figure()
-
-            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines+markers', name='시장 전체 평균 지수', line=dict(color='blue', width=1)))
-
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=3)))
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
-
             if top_competitors_list:
                 top_competitors_monthly_comp = monthly_competitiveness[top_competitors_list]
                 top_competitors_avg_monthly_comp = top_competitors_monthly_comp.mean(axis=1)
@@ -368,14 +411,11 @@ if selected == "시장 경쟁력 분석":
             st.caption("※ 이 그래프는 시장의 기대 단가 대비 실제 구매 단가의 차이(경쟁력 지수)가 시간에 따라 어떻게 변하는지를 보여줍니다.")
             st.markdown("---")
 
-
-            # --- 기존 그래프: 단가 추세 ---
             st.markdown("##### 월별 평균 단가 추세")
-            
             market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
             customer_market_df = market_df[market_df['importer_name'] == customer_name]
             customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
-
+            
             fig4 = go.Figure()
             fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가', line=dict(width=3)))
             fig4.add_trace(go.Scatter(x=customer_avg_price.index.to_timestamp(), y=customer_avg_price, mode='lines+markers', name=f'{customer_name} 평균 단가', line=dict(color='red')))
@@ -392,15 +432,12 @@ if selected == "시장 경쟁력 분석":
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
 
-            # --- 평균 단가 수치 비교 ---
             st.markdown("##### 전체 기간 평균 단가 비교")
             col1, col2, col3 = st.columns(3)
             col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
             col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
             if top_competitors_list:
                 col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
-
-            
 
             if top_competitors_list:
                 st.subheader("경쟁 우위 그룹 벤치마킹 시뮬레이션")
@@ -440,7 +477,9 @@ if selected == "시장 경쟁력 분석":
                         display_data = pd.concat([customer_data, display_data.head(4)])
                     others_volume = ms_data[~ms_data['importer_name'].isin(display_data['importer_name'])]['volume'].sum()
                     if others_volume > 0: display_data.loc[len(display_data)] = {'importer_name': '기타', 'volume': others_volume}
-                    fig5 = px.pie(display_data, values='volume', names='importer_name', title=f"<b>[{analyzed_product_name}] {selected_year_ms}년 시장 점유율</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준</span>", hole=0.3)
+                    fig5 = px.pie(display_data, values='volume', names='importer_name', color='importer_name',
+                                  title=f"<b>[{analyzed_product_name}] {selected_year_ms}년 시장 점유율</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준</span>", 
+                                  hole=0.3, color_discrete_map={customer_name: 'red'})
                     fig5.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig5, use_container_width=True)
             with col2:
@@ -452,7 +491,7 @@ if selected == "시장 경쟁력 분석":
                     if customer_name not in top_importers_by_vol: top_importers_by_vol.append(customer_name)
                     price_comp_data = price_comp_df[price_comp_df['importer_name'].isin(top_importers_by_vol)]
                     avg_price_by_importer = price_comp_data.groupby('importer_name')['unit_price'].mean().sort_values().reset_index()
-                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name')
+                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map={customer_name: 'red'})
                     st.plotly_chart(fig6, use_container_width=True)
         
         if 'Exporter' in market_df.columns and 'origin_country' in market_df.columns:
@@ -470,7 +509,9 @@ if selected == "시장 경쟁력 분석":
                                   title=f"<b>{selected_year_exporter}년 분기별 공급사 단가 분포</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 10개 공급사</span>", 
                                   labels={'quarter': '분기', 'unit_price': '단가(USD/KG)'})
                     st.plotly_chart(fig9, use_container_width=True)
-                    
+                    with st.expander("상세 데이터 보기"):
+                        st.markdown(generate_summary_table_html(exporter_analysis_df_top10, "Exporter", "공급사"), unsafe_allow_html=True)
+
                     customer_exporters_in_year = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['Exporter'].unique()
                     st.info(f"**{customer_name}**가 {selected_year_exporter}년에 거래한 공급사: **{', '.join(customer_exporters_in_year)}**")
 
@@ -515,6 +556,9 @@ if selected == "시장 경쟁력 분석":
                                        title=f"<b>'{exporter}' 거래 업체별 단가 분포</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 10개 수입사</span>", 
                                        labels={'importer_name': '수입사', 'unit_price': '단가(USD/KG)'}, color='importer_name', color_discrete_map={customer_name: 'red'})
                         st.plotly_chart(fig10, use_container_width=True)
+                        with st.expander("상세 데이터 보기"):
+                            st.markdown(generate_summary_table_html(single_exporter_df_top10, "importer_name", "수입사"), unsafe_allow_html=True)
+
 
                     st.subheader(f"{selected_year_exporter}년 분기별 대안 소싱 옵션")
                     customer_origins = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['origin_country'].unique()
