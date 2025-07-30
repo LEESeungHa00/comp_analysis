@@ -429,7 +429,9 @@ if selected == "시장 경쟁력 분석":
                     others_volume = ms_data[~ms_data['importer_name'].isin(display_data['importer_name'])]['volume'].sum()
                     if others_volume > 0: display_data.loc[len(display_data)] = {'importer_name': '기타', 'volume': others_volume}
                     
-                    color_map_pie = {imp: 'lightskyblue' for imp in display_data['importer_name']}
+                    competitors = [imp for imp in display_data['importer_name'] if imp != customer_name]
+                    blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1)) if competitors else 1]
+                    color_map_pie = {comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
                     color_map_pie[customer_name] = 'red'
                     
                     fig5 = px.pie(display_data, values='volume', names='importer_name', color='importer_name',
@@ -447,7 +449,9 @@ if selected == "시장 경쟁력 분석":
                     price_comp_data = price_comp_df[price_comp_df['importer_name'].isin(top_importers_by_vol)]
                     avg_price_by_importer = price_comp_data.groupby('importer_name')['unit_price'].mean().sort_values().reset_index()
                     
-                    color_map_bar = {imp: 'lightskyblue' for imp in avg_price_by_importer['importer_name']}
+                    competitors = [imp for imp in avg_price_by_importer['importer_name'] if imp != customer_name]
+                    blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1)) if competitors else 1]
+                    color_map_bar = {comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
                     color_map_bar[customer_name] = 'red'
 
                     fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map=color_map_bar)
@@ -515,7 +519,9 @@ if selected == "시장 경쟁력 분석":
                         single_exporter_df_top10 = single_exporter_df[single_exporter_df['importer_name'].isin(top_10_importers_by_vol)]
                         
                         importers_in_plot = single_exporter_df_top10['importer_name'].unique()
-                        color_map_box = {imp: 'lightskyblue' for imp in importers_in_plot}
+                        competitors = [imp for imp in display.data['importer_name'] if imp !=customer_name]
+                        blue.shades = px.colors.sequentials.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1))
+                        color_map_box={comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitor)}
                         color_map_box[customer_name] = 'red'
 
                         fig10 = px.box(single_exporter_df_top10, x='importer_name', y='unit_price', 
