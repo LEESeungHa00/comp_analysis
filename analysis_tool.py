@@ -519,7 +519,7 @@ if selected == "시장 경쟁력 분석":
                         single_exporter_df_top10 = single_exporter_df[single_exporter_df['importer_name'].isin(top_10_importers_by_vol)]
                         
                         importers_in_plot = single_exporter_df_top10['importer_name'].unique()
-                        competitors = [imp for imp in display.data['importer_name'] if imp !=customer_name]
+                        competitors = [imp for imp in display_data['importer_name'] if imp !=customer_name]
                         blue.shades = px.colors.sequentials.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1))]
                         color_map_box={comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitor)}
                         color_map_box[customer_name] = 'red'
