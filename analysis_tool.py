@@ -368,6 +368,14 @@ if selected == "시장 경쟁력 분석":
             st.caption("※ 이 그래프는 시장의 기대 단가 대비 실제 구매 단가의 차이(경쟁력 지수)가 시간에 따라 어떻게 변하는지를 보여줍니다.")
             st.markdown("---")
 
+
+            
+            # --- 단가 추세 variables define ---
+            market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
+            customer_market_df = market_df[market_df['importer_name'] == customer_name]
+            customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
+
+
             # --- 평균 단가 수치 비교 ---
             st.markdown("##### 전체 기간 평균 단가 비교")
             col1, col2, col3 = st.columns(3)
@@ -376,12 +384,8 @@ if selected == "시장 경쟁력 분석":
             if top_competitors_list:
                 col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
 
-            
             # --- 기존 그래프: 단가 추세 ---
             st.markdown("##### 월별 평균 단가 추세")
-            market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
-            customer_market_df = market_df[market_df['importer_name'] == customer_name]
-            customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
             
             fig4 = go.Figure()
             fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가', line=dict(width=3)))
