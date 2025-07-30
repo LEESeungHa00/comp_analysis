@@ -369,15 +369,13 @@ if selected == "시장 경쟁력 분석":
             st.markdown("---")
 
 
+            # --- 기존 그래프: 단가 추세 ---
+            st.markdown("##### 월별 평균 단가 추세")
             
-            # --- 단가 추세 variables define ---
             market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
             customer_market_df = market_df[market_df['importer_name'] == customer_name]
             customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
 
-            # --- 기존 그래프: 단가 추세 ---
-            st.markdown("##### 월별 평균 단가 추세")
-            
             fig4 = go.Figure()
             fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가', line=dict(width=3)))
             fig4.add_trace(go.Scatter(x=customer_avg_price.index.to_timestamp(), y=customer_avg_price, mode='lines+markers', name=f'{customer_name} 평균 단가', line=dict(color='red')))
@@ -401,6 +399,8 @@ if selected == "시장 경쟁력 분석":
             col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
             if top_competitors_list:
                 col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
+
+            
 
             if top_competitors_list:
                 st.subheader("경쟁 우위 그룹 벤치마킹 시뮬레이션")
@@ -452,7 +452,7 @@ if selected == "시장 경쟁력 분석":
                     if customer_name not in top_importers_by_vol: top_importers_by_vol.append(customer_name)
                     price_comp_data = price_comp_df[price_comp_df['importer_name'].isin(top_importers_by_vol)]
                     avg_price_by_importer = price_comp_data.groupby('importer_name')['unit_price'].mean().sort_values().reset_index()
-                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map={customer_name: 'red'})
+                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name')
                     st.plotly_chart(fig6, use_container_width=True)
         
         if 'Exporter' in market_df.columns and 'origin_country' in market_df.columns:
