@@ -349,7 +349,7 @@ if selected == "시장 경쟁력 분석":
             customer_monthly_comp = monthly_competitiveness.get(customer_name)
             
             fig_comp_trend = go.Figure()
-            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=3)))
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(width=3)))
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
             if top_competitors_list:
