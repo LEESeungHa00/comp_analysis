@@ -344,6 +344,8 @@ if selected == "시장 경쟁력 분석":
         with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
             # --- 구매 경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
             st.markdown("##### 구매 경쟁력 지수 월별 추이")
+            st.caption("구매 경쟁력 = (시장 기대 가격) - (실제 구매 가격)")
+            
             monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
             
             market_avg_monthly_comp = monthly_competitiveness.mean(axis=1)
