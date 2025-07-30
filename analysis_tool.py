@@ -469,8 +469,10 @@ if selected == "시장 경쟁력 분석":
                                   labels={'quarter': '분기', 'unit_price': '단가(USD/KG)'})
                     st.plotly_chart(fig9, use_container_width=True)
                     with st.expander("상세 데이터 보기"):
-                        st.markdown(generate_summary_table_html(exporter_analysis_df_top10, "Exporter", "공급사"), unsafe_allow_html=True)
-                    
+                        summary_df_exp = exporter_analysis_df_top10.groupby('Exporter')['unit_price'].agg(['max', 'mean', 'min']).reset_index()
+                        summary_df_exp.columns = ['공급사', '최대 단가(USD/KG)', '평균 단가(USD/KG)', '최소 단가(USD/KG)']
+                        st.dataframe(summary_df_exp.style.format({'최대 단가(USD/KG)': '${:,.2f}', '평균 단가(USD/KG)': '${:,.2f}', '최소 단가(USD/KG)': '${:,.2f}'}))
+
                     customer_exporters_in_year = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['Exporter'].unique()
                     st.info(f"**{customer_name}**가 {selected_year_exporter}년에 거래한 공급사: **{', '.join(customer_exporters_in_year)}**")
 
@@ -521,7 +523,9 @@ if selected == "시장 경쟁력 분석":
                                        labels={'importer_name': '수입사', 'unit_price': '단가(USD/KG)'}, color='importer_name', color_discrete_map=color_map_box)
                         st.plotly_chart(fig10, use_container_width=True)
                         with st.expander("상세 데이터 보기"):
-                            st.markdown(generate_summary_table_html(single_exporter_df_top10, "importer_name", "수입사"), unsafe_allow_html=True)
+                            summary_df_imp = single_exporter_df_top10.groupby('importer_name')['unit_price'].agg(['max', 'mean', 'min']).reset_index()
+                            summary_df_imp.columns = ['수입사', '최대 단가(USD/KG)', '평균 단가(USD/KG)', '최소 단가(USD/KG)']
+                            st.dataframe(summary_df_imp.style.format({'최대 단가(USD/KG)': '${:,.2f}', '평균 단가(USD/KG)': '${:,.2f}', '최소 단가(USD/KG)': '${:,.2f}'}))
 
                     st.subheader(f"{selected_year_exporter}년 분기별 대안 소싱 옵션")
                     customer_origins = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['origin_country'].unique()
