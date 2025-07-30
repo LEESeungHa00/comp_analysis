@@ -342,7 +342,7 @@ if selected == "시장 경쟁력 분석":
                     st.info(f"참고: **{customer_name}**의 구매 경쟁력 순위는 전체 {len(all_competitors_ranked)}개사 중 **{customer_rank}위**입니다.")
 
         with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
-            # --- 구매경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
+            # --- 구매 경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
             st.markdown("##### 구매 경쟁력 지수 월별 추이")
             monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
             
@@ -351,7 +351,7 @@ if selected == "시장 경쟁력 분석":
             
             fig_comp_trend = go.Figure()
 
-            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=3)))
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=1)))
 
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
