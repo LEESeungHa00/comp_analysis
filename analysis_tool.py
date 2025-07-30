@@ -353,7 +353,7 @@ if selected == "시장 경쟁력 분석":
             
             fig_comp_trend = go.Figure()
 
-            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=1)))
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines+markers', name='시장 전체 평균 지수', line=dict(color='blue', width=1)))
 
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
@@ -368,6 +368,15 @@ if selected == "시장 경쟁력 분석":
             st.caption("※ 이 그래프는 시장의 기대 단가 대비 실제 구매 단가의 차이(경쟁력 지수)가 시간에 따라 어떻게 변하는지를 보여줍니다.")
             st.markdown("---")
 
+            # --- 평균 단가 수치 비교 ---
+            st.markdown("##### 전체 기간 평균 단가 비교")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
+            col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
+            if top_competitors_list:
+                col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
+
+            
             # --- 기존 그래프: 단가 추세 ---
             st.markdown("##### 월별 평균 단가 추세")
             market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
@@ -390,13 +399,6 @@ if selected == "시장 경쟁력 분석":
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
 
-            # --- 평균 단가 수치 비교 ---
-            st.markdown("##### 전체 기간 평균 단가 비교")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
-            col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
-            if top_competitors_list:
-                col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
 
 
             if top_competitors_list:
