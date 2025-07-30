@@ -121,7 +121,6 @@ with st.sidebar:
 # ==============================================================================
 if selected == "고객사 효율 분석":
     st.title('💲 고객사 효율 분석 (Overview)')
-    st.caption(f"업로드 파일은 지정한 1개의 업체 정보만을 포함해야 정확한 결과값을 얻을 수 있습니다.")
     
     if st.session_state.analysis_done:
         st.button("새로운 분석 시작 (다시하기)", on_click=reset_analysis_states)
@@ -229,7 +228,7 @@ if selected == "고객사 효율 분석":
             sorted_clusters = st.session_state.plot_df.groupby('cluster_name')['volume'].sum().sort_values(ascending=False).index.tolist()
             fig2 = px.bar(cluster_volume, x='year_month_str', y='volume', color='cluster_name', 
                           title=f"<b>[{st.session_state.customer_name}] 주요 수입 품목군 월별 수입량(KG)</b>", 
-                          labels={'year_month_str': '수입일자', 'volume': '수입량(KG)', 'cluster_name': '품목 클러스터'}, 
+                          labels={'year_month_str': '연-월', 'volume': '수입량(KG)', 'cluster_name': '품목 클러스터'}, 
                           category_orders={'cluster_name': sorted_clusters})
             st.plotly_chart(fig2, use_container_width=True)
 
@@ -238,7 +237,6 @@ if selected == "고객사 효율 분석":
 # ==============================================================================
 if selected == "시장 경쟁력 분석":
     st.title('🏆 시장 경쟁력 상세 분석 (Drill-down)')
-    st.caption(f"업로드 파일은 지정한 1개의 품목 정보만을 포함해야 정확한 결과값을 얻을 수 있습니다.")
     
     if st.session_state.get('market_analysis_done', False):
         st.button("새로운 시장 분석 시작 (다시하기)", on_click=reset_market_analysis_states)
@@ -315,8 +313,6 @@ if selected == "시장 경쟁력 분석":
             st.plotly_chart(fig_comp, use_container_width=True)
             
             st.markdown("##### 구매 경쟁력 상위 10개사")
-            st.caption("※ 구매 경쟁력 지수 = (LOWESS 회귀 분석을 통해 계산된 예상 단가) - (구매 단가)")
-
             top_10_competitors = all_competitors_ranked.head(10)
             
             def highlight_customer(row):
@@ -332,6 +328,27 @@ if selected == "시장 경쟁력 분석":
                     st.info(f"참고: **{customer_name}**의 구매 경쟁력 순위는 전체 {len(all_competitors_ranked)}개사 중 **{customer_rank}위**입니다.")
 
         with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
+            # --- 구매 경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
+            st.markdown("##### 구매 경쟁력 지수 월별 추이")
+            monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
+            customer_monthly_comp = monthly_competitiveness.get(customer_name)
+            
+            fig_comp_trend = go.Figure()
+            if customer_monthly_comp is not None:
+                fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
+
+            if top_competitors_list:
+                top_competitors_monthly_comp = monthly_competitiveness[top_competitors_list]
+                top_competitors_avg_monthly_comp = top_competitors_monthly_comp.mean(axis=1)
+                fig_comp_trend.add_trace(go.Scatter(x=top_competitors_avg_monthly_comp.index.to_timestamp(), y=top_competitors_avg_monthly_comp, mode='lines+markers', name='경쟁 우위 그룹 평균 지수', line=dict(color='green', dash='dash')))
+
+            fig_comp_trend.update_layout(title=f'<b>[{analyzed_product_name}] 구매 경쟁력 지수 월별 추이</b>', xaxis_title='연-월', yaxis_title='구매 경쟁력 지수')
+            st.plotly_chart(fig_comp_trend, use_container_width=True)
+            st.caption("※ 이 그래프는 시장의 기대 단가 대비 실제 구매 단가의 차이(경쟁력 지수)가 시간에 따라 어떻게 변하는지를 보여줍니다.")
+            st.markdown("---")
+
+            # --- 기존 그래프: 단가 추세 ---
+            st.markdown("##### 월별 평균 단가 추세")
             market_avg_price = market_df.groupby('year_month')['unit_price'].mean().rename('market_avg_price')
             customer_market_df = market_df[market_df['importer_name'] == customer_name]
             customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
@@ -342,14 +359,14 @@ if selected == "시장 경쟁력 분석":
             
             if top_competitors_list:
                 st.info(f"**벤치마크: 경쟁 우위 그룹 평균**")
-                st.caption("※ '경쟁 우위 그룹'은 '구매 경쟁력 분석'의 순위에서 현재 선택된 고객사보다 높은 순위를 기록한 모든 기업들로 이루어진 집합입니다.")
+                st.caption("※ '경쟁 우위 그룹'은 '구매 경쟁력 분석'의 순위에서 현재 선택된 고객사보다 높은 순위를 기록한 모든 기업들의 평균입니다.")
                 top_competitors_df = market_df[market_df['importer_name'].isin(top_competitors_list)]
                 top_competitors_avg_price = top_competitors_df.groupby('year_month')['unit_price'].mean().rename('top_competitors_avg_price')
                 fig4.add_trace(go.Scatter(x=top_competitors_avg_price.index.to_timestamp(), y=top_competitors_avg_price, mode='lines+markers', name='경쟁 우위 그룹 평균', line=dict(color='green', dash='dash')))
             else:
                 st.success(f"**벤치마크 분석:** `{customer_name}`님이 현재 시장에서 가장 우수한 구매 경쟁력을 보이고 있습니다!")
 
-            fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='수입일자', yaxis_title='평균 단가(USD/KG)')
+            fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
 
             if top_competitors_list:
@@ -415,7 +432,7 @@ if selected == "시장 경쟁력 분석":
                     top_10_exporters_by_vol = exporter_analysis_df.groupby('Exporter')['volume'].sum().nlargest(10).index
                     exporter_analysis_df_top10 = exporter_analysis_df[exporter_analysis_df['Exporter'].isin(top_10_exporters_by_vol)]
 
-                    #st.subheader(f"{selected_year_exporter}년 분기별 공급사 단가 분포")
+                    st.subheader(f"{selected_year_exporter}년 분기별 공급사 단가 분포")
                     fig9 = px.box(exporter_analysis_df_top10, x='quarter', y='unit_price', color='Exporter', 
                                   title=f"<b>{selected_year_exporter}년 분기별 공급사 단가 분포</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 10개 공급사</span>", 
                                   labels={'quarter': '분기', 'unit_price': '단가(USD/KG)'})
