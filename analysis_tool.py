@@ -64,55 +64,6 @@ def remove_outliers_iqr(df, column_name):
         st.warning(f"분석의 정확도를 위해 시장 데이터의 단가(Unit Price) 이상치 {removed_rows}건을 제거했습니다.")
     return df_filtered
 
-def generate_summary_table_html(df, group_by_col, header_name, value_col='unit_price'):
-    """박스플롯에 대한 요약 테이블 HTML을 생성하는 함수"""
-    if df.empty:
-        return "<p>요약할 데이터가 없습니다.</p>"
-    summary_df = df.groupby(group_by_col)[value_col].agg(['max', 'mean', 'min']).reset_index()
-    
-    html = f"""
-    <style>
-        .summary-table {{
-            width: 100%;
-            border-collapse: collapse;
-        }}
-        .summary-table th, .summary-table td {{
-            border: 1px solid #e6e6e6;
-            padding: 8px;
-            text-align: left;
-        }}
-        .summary-table th {{
-            background-color: #f2f2f2;
-        }}
-    </style>
-    <table class="summary-table">
-      <thead>
-        <tr>
-          <th rowspan="2" style="text-align: center; vertical-align: middle;">{header_name}</th>
-          <th colspan="3" style="text-align: center;">수입 단가(USD/KG)</th>
-        </tr>
-        <tr>
-          <th style="text-align: center;">최대</th>
-          <th style="text-align: center;">평균</th>
-          <th style="text-align: center;">최소</th>
-        </tr>
-      </thead>
-      <tbody>
-    """
-
-    for index, row in summary_df.iterrows():
-        html += f"""
-        <tr>
-            <td>{row[group_by_col]}</td>
-            <td style="text-align: right;">${row['max']:.2f}</td>
-            <td style="text-align: right;">${row['mean']:.2f}</td>
-            <td style="text-align: right;">${row['min']:.2f}</td>
-        </tr>
-        """
-    
-    html += "</tbody></table>"
-    return html
-
 def reset_analysis_states():
     """모든 분석 상태를 초기화하는 함수"""
     st.session_state.analysis_done = False
@@ -477,9 +428,13 @@ if selected == "시장 경쟁력 분석":
                         display_data = pd.concat([customer_data, display_data.head(4)])
                     others_volume = ms_data[~ms_data['importer_name'].isin(display_data['importer_name'])]['volume'].sum()
                     if others_volume > 0: display_data.loc[len(display_data)] = {'importer_name': '기타', 'volume': others_volume}
+                    
+                    color_map_pie = {imp: 'lightskyblue' for imp in display_data['importer_name']}
+                    color_map_pie[customer_name] = 'red'
+                    
                     fig5 = px.pie(display_data, values='volume', names='importer_name', color='importer_name',
                                   title=f"<b>[{analyzed_product_name}] {selected_year_ms}년 시장 점유율</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준</span>", 
-                                  hole=0.3, color_discrete_map={customer_name: 'red'})
+                                  hole=0.3, color_discrete_map=color_map_pie)
                     fig5.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig5, use_container_width=True)
             with col2:
@@ -491,7 +446,11 @@ if selected == "시장 경쟁력 분석":
                     if customer_name not in top_importers_by_vol: top_importers_by_vol.append(customer_name)
                     price_comp_data = price_comp_df[price_comp_df['importer_name'].isin(top_importers_by_vol)]
                     avg_price_by_importer = price_comp_data.groupby('importer_name')['unit_price'].mean().sort_values().reset_index()
-                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map={customer_name: 'red'})
+                    
+                    color_map_bar = {imp: 'lightskyblue' for imp in avg_price_by_importer['importer_name']}
+                    color_map_bar[customer_name] = 'red'
+
+                    fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map=color_map_bar)
                     st.plotly_chart(fig6, use_container_width=True)
         
         if 'Exporter' in market_df.columns and 'origin_country' in market_df.columns:
@@ -511,7 +470,7 @@ if selected == "시장 경쟁력 분석":
                     st.plotly_chart(fig9, use_container_width=True)
                     with st.expander("상세 데이터 보기"):
                         st.markdown(generate_summary_table_html(exporter_analysis_df_top10, "Exporter", "공급사"), unsafe_allow_html=True)
-
+                    
                     customer_exporters_in_year = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['Exporter'].unique()
                     st.info(f"**{customer_name}**가 {selected_year_exporter}년에 거래한 공급사: **{', '.join(customer_exporters_in_year)}**")
 
@@ -530,7 +489,7 @@ if selected == "시장 경쟁력 분석":
                             x=importer_summary['importer_name'],
                             y=importer_summary['total_volume'],
                             name='총 수입량(KG)',
-                            marker_color=['red' if imp == customer_name else 'lightblue' for imp in importer_summary['importer_name']]
+                            marker_color=['red' if imp == customer_name else 'lightskyblue' for imp in importer_summary['importer_name']]
                         ))
                         fig8.add_trace(go.Scatter(
                             x=importer_summary['importer_name'],
@@ -552,13 +511,17 @@ if selected == "시장 경쟁력 분석":
                         st.subheader(f"단가 분포 비교")
                         top_10_importers_by_vol = single_exporter_df.groupby('importer_name')['volume'].sum().nlargest(10).index
                         single_exporter_df_top10 = single_exporter_df[single_exporter_df['importer_name'].isin(top_10_importers_by_vol)]
+                        
+                        importers_in_plot = single_exporter_df_top10['importer_name'].unique()
+                        color_map_box = {imp: 'lightskyblue' for imp in importers_in_plot}
+                        color_map_box[customer_name] = 'red'
+
                         fig10 = px.box(single_exporter_df_top10, x='importer_name', y='unit_price', 
                                        title=f"<b>'{exporter}' 거래 업체별 단가 분포</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 10개 수입사</span>", 
-                                       labels={'importer_name': '수입사', 'unit_price': '단가(USD/KG)'}, color='importer_name', color_discrete_map={customer_name: 'red'})
+                                       labels={'importer_name': '수입사', 'unit_price': '단가(USD/KG)'}, color='importer_name', color_discrete_map=color_map_box)
                         st.plotly_chart(fig10, use_container_width=True)
                         with st.expander("상세 데이터 보기"):
                             st.markdown(generate_summary_table_html(single_exporter_df_top10, "importer_name", "수입사"), unsafe_allow_html=True)
-
 
                     st.subheader(f"{selected_year_exporter}년 분기별 대안 소싱 옵션")
                     customer_origins = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['origin_country'].unique()
