@@ -198,7 +198,9 @@ if selected == "고객사 효율 분석":
     if st.session_state.analysis_done:
         with st.expander("1. 계약 전후 예상 절감액 분석", expanded=True):
             st.subheader("총 예상 절감액")
-            st.markdown(f"## <span style='color:blue;'>${st.session_state.total_savings:,.2f}</span>", unsafe_allow_html=True)
+            total_savings = st.session_state.total_savings
+            color = "blue" if total_savings >= 0 else "red"
+            st.markdown(f"## <span style='color:{color};'>${total_savings:,.2f}</span>", unsafe_allow_html=True)
             st.caption(f"※ 계약일({st.session_state.contract_date.date()}) 이후, 고객사의 자체 구매 단가 변화에 따른 총 예상 절감액입니다.")
             st.subheader("품목군별 상세 절감 내역")
             cols = st.columns(4)
@@ -349,7 +351,7 @@ if selected == "시장 경쟁력 분석":
             customer_monthly_comp = monthly_competitiveness.get(customer_name)
             
             fig_comp_trend = go.Figure()
-            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(width=3)))
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=3)))
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
             if top_competitors_list:
@@ -476,7 +478,7 @@ if selected == "시장 경쟁력 분석":
                         summary_df_exp = exporter_analysis_df_top10.groupby('Exporter')['unit_price'].agg(['max', 'mean', 'min']).reset_index()
                         summary_df_exp.columns = ['공급사', '최대 단가(USD/KG)', '평균 단가(USD/KG)', '최소 단가(USD/KG)']
                         st.dataframe(summary_df_exp.style.format({'최대 단가(USD/KG)': '${:,.2f}', '평균 단가(USD/KG)': '${:,.2f}', '최소 단가(USD/KG)': '${:,.2f}'}))
-
+                    
                     customer_exporters_in_year = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['Exporter'].unique()
                     st.info(f"**{customer_name}**가 {selected_year_exporter}년에 거래한 공급사: **{', '.join(customer_exporters_in_year)}**")
 
@@ -519,9 +521,9 @@ if selected == "시장 경쟁력 분석":
                         single_exporter_df_top10 = single_exporter_df[single_exporter_df['importer_name'].isin(top_10_importers_by_vol)]
                         
                         importers_in_plot = single_exporter_df_top10['importer_name'].unique()
-                        competitors = [imp for imp in display_data['importer_name'] if imp !=customer_name]
-                        blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1))]
-                        color_map_box={comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
+                        competitors = [imp for imp in importers_in_plot if imp != customer_name]
+                        blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1)) if competitors else 1]
+                        color_map_box = {comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
                         color_map_box[customer_name] = 'red'
 
                         fig10 = px.box(single_exporter_df_top10, x='importer_name', y='unit_price', 
