@@ -375,15 +375,6 @@ if selected == "시장 경쟁력 분석":
             customer_market_df = market_df[market_df['importer_name'] == customer_name]
             customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
 
-
-            # --- 평균 단가 수치 비교 ---
-            st.markdown("##### 전체 기간 평균 단가 비교")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
-            col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
-            if top_competitors_list:
-                col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
-
             # --- 기존 그래프: 단가 추세 ---
             st.markdown("##### 월별 평균 단가 추세")
             
@@ -403,7 +394,13 @@ if selected == "시장 경쟁력 분석":
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
 
-
+            # --- 평균 단가 수치 비교 ---
+            st.markdown("##### 전체 기간 평균 단가 비교")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
+            col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
+            if top_competitors_list:
+                col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
 
             if top_competitors_list:
                 st.subheader("경쟁 우위 그룹 벤치마킹 시뮬레이션")
