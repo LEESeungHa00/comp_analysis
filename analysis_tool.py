@@ -94,8 +94,22 @@ st.set_page_config(layout="wide")
 # --- 세션 상태 초기화 ---
 if 'analysis_done' not in st.session_state:
     st.session_state.analysis_done = False
+    st.session_state.customer_name = None
+    st.session_state.plot_df = None
+    st.session_state.customer_df = None
+    st.session_state.contract_date = None
+    st.session_state.tfidf_matrix = None
+    st.session_state.savings_df = None
+    st.session_state.total_savings = None
+
 if 'market_analysis_done' not in st.session_state:
     st.session_state.market_analysis_done = False
+    st.session_state.market_df = None
+    st.session_state.analyzed_product_name = None
+    st.session_state.selected_customer = None
+    st.session_state.market_contract_date = None
+    st.session_state.top_competitors_list = []
+    st.session_state.all_competitors_ranked = None
 
 # --- 사이드바 메뉴 ---
 with st.sidebar:
@@ -328,12 +342,17 @@ if selected == "시장 경쟁력 분석":
                     st.info(f"참고: **{customer_name}**의 구매 경쟁력 순위는 전체 {len(all_competitors_ranked)}개사 중 **{customer_rank}위**입니다.")
 
         with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
-            # --- 구매 경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
+            # --- 구매경쟁력 꺾은선 그래프: 구매 경쟁력 지수 추세 ---
             st.markdown("##### 구매 경쟁력 지수 월별 추이")
             monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
+            
+            market_avg_monthly_comp = monthly_competitiveness.mean(axis=1)
             customer_monthly_comp = monthly_competitiveness.get(customer_name)
             
             fig_comp_trend = go.Figure()
+
+            fig_comp_trend.add_trace(go.Scatter(x=market_avg_monthly_comp.index.to_timestamp(), y=market_avg_monthly_comp, mode='lines', name='시장 전체 평균 지수', line=dict(color='blue', width=3)))
+
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
 
@@ -354,7 +373,7 @@ if selected == "시장 경쟁력 분석":
             customer_avg_price = customer_market_df.groupby('year_month')['unit_price'].mean().rename('customer_avg_price')
             
             fig4 = go.Figure()
-            fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가'))
+            fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가', line=dict(width=3)))
             fig4.add_trace(go.Scatter(x=customer_avg_price.index.to_timestamp(), y=customer_avg_price, mode='lines+markers', name=f'{customer_name} 평균 단가', line=dict(color='red')))
             
             if top_competitors_list:
@@ -368,6 +387,15 @@ if selected == "시장 경쟁력 분석":
 
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
+
+            # --- 평균 단가 수치 비교 ---
+            st.markdown("##### 전체 기간 평균 단가 비교")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
+            col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
+            if top_competitors_list:
+                col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
+
 
             if top_competitors_list:
                 st.subheader("경쟁 우위 그룹 벤치마킹 시뮬레이션")
