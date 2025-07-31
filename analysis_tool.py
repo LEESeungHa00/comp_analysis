@@ -143,6 +143,7 @@ if selected == "고객사 효율 분석":
         with st.form(key='analysis_form'):
             st.header("⚙️ 분석 설정")
             uploaded_file = st.file_uploader("고객사 데이터 파일을 업로드하세요", type=['csv', 'xlsx'])
+            st.caption("※ 하나의 회사 정보를 가지고 있는 TDS raw file을 업로드해주세요.")
             contract_date_input = st.date_input("계약 시작일 (Contract Date)을 선택하세요")
             submitted = st.form_submit_button("분석 실행")
 
@@ -260,13 +261,20 @@ if selected == "시장 경쟁력 분석":
     if not st.session_state.get('market_analysis_done', False):
         st.write("특정 품목에 대한 전체 시장 데이터를 업로드하여, 고객사의 시장 내 경쟁력을 심층 분석합니다.")
         market_file = st.file_uploader(f"분석할 품목의 전체 시장 데이터를 업로드하세요.", type=['csv', 'xlsx'], key="market_uploader")
+        st.caption("※ 하나의 품목에 대한 여러 회사의 정보가 포함된 TDS raw file을 업로드해주세요.")
         
         if market_file:
             with st.form("market_analysis_form"):
                 try:
                     market_df_for_importers = pd.read_csv(market_file) if market_file.name.endswith('.csv') else pd.read_excel(market_file)
-                    importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
-                    customer_name_selection = st.selectbox("분석할 고객사를 선택해주세요.", options=importer_list)
+                    
+                    if 'Raw Importer Name' in market_df_for_importers.columns:
+                        importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
+                        customer_name_selection = st.selectbox("분석할 고객사를 선택해주세요.", options=importer_list)
+                    else:
+                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
+                        customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
+                
                 except Exception as e:
                     st.error("파일을 읽는 중 오류가 발생했습니다. 컬럼명을 확인해주세요.")
                     customer_name_selection = None
@@ -278,7 +286,14 @@ if selected == "시장 경쟁력 분석":
             if market_submitted and customer_name_selection and analyzed_product_name_input:
                 with st.spinner('시장 데이터를 분석 중입니다. 파일 크기에 따라 시간이 걸릴 수 있습니다...'):
                     market_df = market_df_for_importers.copy()
-                    market_df.rename(columns={'Date': 'date', 'Raw Importer Name': 'importer_name', 'Reported Product Name': 'product_name', 'Volume': 'volume', 'Unit Price': 'unit_price', 'Origin Country': 'origin_country'}, inplace=True)
+                    
+                    rename_dict = {'Date': 'date', 'Reported Product Name': 'product_name', 'Volume': 'volume', 'Unit Price': 'unit_price', 'Origin Country': 'origin_country'}
+                    if 'Raw Importer Name' in market_df.columns:
+                        rename_dict['Raw Importer Name'] = 'importer_name'
+                    else:
+                        market_df['importer_name'] = customer_name_selection
+
+                    market_df.rename(columns=rename_dict, inplace=True)
                     market_df['date'] = pd.to_datetime(market_df['date'])
                     market_df['year_month'] = market_df['date'].dt.to_period('M')
                     market_df['year'] = market_df['date'].dt.year
