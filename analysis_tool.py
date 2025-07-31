@@ -140,61 +140,83 @@ if selected == "고객사 효율 분석":
         st.button("새로운 분석 시작 (다시하기)", on_click=reset_analysis_states)
     
     if not st.session_state.analysis_done:
-        with st.form(key='analysis_form'):
-            st.header("⚙️ 분석 설정")
-            uploaded_file = st.file_uploader("고객사 데이터 파일을 업로드하세요", type=['csv', 'xlsx'])
-            st.caption("※ 하나의 회사 정보를 가지고 있는 TDS raw file을 업로드해주세요.")
-            contract_date_input = st.date_input("계약 시작일 (Contract Date)을 선택하세요")
-            submitted = st.form_submit_button("분석 실행")
+        st.header("⚙️ 분석 설정")
+        uploaded_file = st.file_uploader("고객사 데이터 파일을 업로드하세요", type=['csv', 'xlsx'])
+        st.caption("※ 하나의 회사 정보를 가지고 있는 TDS raw file을 업로드해주세요.")
+        
+        if uploaded_file:
+            with st.form(key='analysis_form'):
+                try:
+                    df_for_check = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                    
+                    customer_name_input = None
+                    if 'Raw Importer Name' not in df_for_check.columns:
+                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
+                        customer_name_input = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
 
-        if submitted and uploaded_file is not None:
-            with st.spinner('고객사 데이터를 분석 중입니다...'):
-                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-                required_columns = ['Date', 'Raw Importer Name', 'Reported Product Name', 'Volume', 'Unit Price']
-                if not all(col in df.columns for col in required_columns):
-                    st.error(f"업로드한 파일에 필수 컬럼이 없습니다. ({', '.join(required_columns)} 컬럼이 필요합니다.)")
-                    st.stop()
+                except Exception as e:
+                    st.error("파일을 읽는 중 오류가 발생했습니다. 파일 형식이나 컬럼명을 확인해주세요.")
                 
-                df.rename(columns={'Date': 'date', 'Raw Importer Name': 'importer_name', 'Reported Product Name': 'product_name', 'Volume': 'volume', 'Unit Price': 'unit_price'}, inplace=True)
-                df['date'] = pd.to_datetime(df['date'])
-                df['year_month'] = df['date'].dt.to_period('M')
-                df['year'] = df['date'].dt.year
-                df = df.dropna(subset=['importer_name', 'product_name', 'volume', 'unit_price'])
-                
-                customer_name = df['importer_name'].mode()[0]
-                customer_df = df[df['importer_name'] == customer_name].copy()
-                customer_df['product_preprocessed'] = customer_df['product_name'].apply(preprocess_product_name)
-                vectorizer = TfidfVectorizer(min_df=1, ngram_range=(1,2))
-                tfidf_matrix = vectorizer.fit_transform(customer_df['product_preprocessed'])
-                dbscan = DBSCAN(eps=0.9, min_samples=3, metric='cosine')
-                cluster_labels = dbscan.fit_predict(tfidf_matrix)
-                cluster_name_map = get_cluster_name(cluster_labels, customer_df['product_preprocessed'])
-                customer_df['cluster'] = cluster_labels
-                customer_df['cluster_name'] = customer_df['cluster'].map(cluster_name_map)
-                plot_df = customer_df[customer_df['cluster'] != -1].copy()
+                contract_date_input = st.date_input("계약 시작일 (Contract Date)을 선택하세요")
+                submitted = st.form_submit_button("분석 실행")
 
-                contract_date = pd.to_datetime(contract_date_input)
-                before_contract_df = plot_df[plot_df['date'] < contract_date]
-                after_contract_df = plot_df[plot_df['date'] >= contract_date]
-                avg_price_before = before_contract_df.groupby('cluster_name')['unit_price'].mean().rename('avg_price_before')
-                avg_price_after = after_contract_df.groupby('cluster_name')['unit_price'].mean().rename('avg_price_after')
-                volume_after = after_contract_df.groupby('cluster_name')['volume'].sum().rename('volume_after')
-                savings_df = pd.concat([avg_price_before, avg_price_after, volume_after], axis=1).dropna()
-                savings_df['savings'] = (savings_df['avg_price_before'] - savings_df['avg_price_after']) * savings_df['volume_after']
-                savings_df = savings_df.sort_values('savings', ascending=False)
-                total_savings = savings_df['savings'].sum()
+            if submitted:
+                with st.spinner('고객사 데이터를 분석 중입니다...'):
+                    df = df_for_check.copy()
+                    
+                    rename_dict = {'Date': 'date', 'Reported Product Name': 'product_name', 'Volume': 'volume', 'Unit Price': 'unit_price'}
+                    if 'Raw Importer Name' in df.columns:
+                        rename_dict['Raw Importer Name'] = 'importer_name'
+                    
+                    df.rename(columns=rename_dict, inplace=True)
+                    
+                    if 'importer_name' not in df.columns and customer_name_input:
+                        df['importer_name'] = customer_name_input
+                    
+                    required_columns = ['date', 'importer_name', 'product_name', 'volume', 'unit_price']
+                    if not all(col in df.columns for col in required_columns):
+                        st.error(f"필수 컬럼이 부족합니다. 파일 내용을 확인해주세요.")
+                        st.stop()
+                    
+                    df['date'] = pd.to_datetime(df['date'])
+                    df['year_month'] = df['date'].dt.to_period('M')
+                    df['year'] = df['date'].dt.year
+                    df = df.dropna(subset=['importer_name', 'product_name', 'volume', 'unit_price'])
+                    
+                    customer_name = df['importer_name'].mode()[0]
+                    customer_df = df[df['importer_name'] == customer_name].copy()
+                    customer_df['product_preprocessed'] = customer_df['product_name'].apply(preprocess_product_name)
+                    vectorizer = TfidfVectorizer(min_df=1, ngram_range=(1,2))
+                    tfidf_matrix = vectorizer.fit_transform(customer_df['product_preprocessed'])
+                    dbscan = DBSCAN(eps=0.9, min_samples=3, metric='cosine')
+                    cluster_labels = dbscan.fit_predict(tfidf_matrix)
+                    cluster_name_map = get_cluster_name(cluster_labels, customer_df['product_preprocessed'])
+                    customer_df['cluster'] = cluster_labels
+                    customer_df['cluster_name'] = customer_df['cluster'].map(cluster_name_map)
+                    plot_df = customer_df[customer_df['cluster'] != -1].copy()
 
-                st.session_state.customer_name = customer_name
-                st.session_state.plot_df = plot_df
-                st.session_state.customer_df = customer_df
-                st.session_state.contract_date = contract_date
-                st.session_state.tfidf_matrix = tfidf_matrix
-                st.session_state.savings_df = savings_df
-                st.session_state.total_savings = total_savings
-                st.session_state.analysis_done = True
-                
-            st.success(f"'{customer_name}' 고객사 분석 완료!")
-            st.rerun()
+                    contract_date = pd.to_datetime(contract_date_input)
+                    before_contract_df = plot_df[plot_df['date'] < contract_date]
+                    after_contract_df = plot_df[plot_df['date'] >= contract_date]
+                    avg_price_before = before_contract_df.groupby('cluster_name')['unit_price'].mean().rename('avg_price_before')
+                    avg_price_after = after_contract_df.groupby('cluster_name')['unit_price'].mean().rename('avg_price_after')
+                    volume_after = after_contract_df.groupby('cluster_name')['volume'].sum().rename('volume_after')
+                    savings_df = pd.concat([avg_price_before, avg_price_after, volume_after], axis=1).dropna()
+                    savings_df['savings'] = (savings_df['avg_price_before'] - savings_df['avg_price_after']) * savings_df['volume_after']
+                    savings_df = savings_df.sort_values('savings', ascending=False)
+                    total_savings = savings_df['savings'].sum()
+
+                    st.session_state.customer_name = customer_name
+                    st.session_state.plot_df = plot_df
+                    st.session_state.customer_df = customer_df
+                    st.session_state.contract_date = contract_date
+                    st.session_state.tfidf_matrix = tfidf_matrix
+                    st.session_state.savings_df = savings_df
+                    st.session_state.total_savings = total_savings
+                    st.session_state.analysis_done = True
+                    
+                st.success(f"'{customer_name}' 고객사 분석 완료!")
+                st.rerun()
 
     if st.session_state.analysis_done:
         with st.expander("1. 계약 전후 예상 절감액 분석", expanded=True):
@@ -272,8 +294,8 @@ if selected == "시장 경쟁력 분석":
                         importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
                         customer_name_selection = st.selectbox("분석할 고객사를 선택해주세요.", options=importer_list)
                     else:
-                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
-                        customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
+                        #st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
+                        #customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
                 
                 except Exception as e:
                     st.error("파일을 읽는 중 오류가 발생했습니다. 컬럼명을 확인해주세요.")
