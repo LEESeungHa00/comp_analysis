@@ -294,7 +294,7 @@ if selected == "시장 경쟁력 분석":
                         importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
                         customer_name_selection = st.selectbox("분석할 고객사를 선택해주세요.", options=importer_list)
                     else:
-                        #st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
+                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 수입사 이름이 포함된 파일을 업로드해주세요.")
                         #customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
                 
                 except Exception as e:
