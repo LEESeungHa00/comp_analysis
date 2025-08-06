@@ -64,6 +64,55 @@ def remove_outliers_iqr(df, column_name):
         st.warning(f"분석의 정확도를 위해 시장 데이터의 단가(Unit Price) 이상치 {removed_rows}건을 제거했습니다.")
     return df_filtered
 
+def generate_summary_table_html(df, group_by_col, header_name, value_col='unit_price'):
+    """박스플롯에 대한 요약 테이블 HTML을 생성하는 함수"""
+    if df.empty:
+        return "<p>요약할 데이터가 없습니다.</p>"
+    summary_df = df.groupby(group_by_col)[value_col].agg(['max', 'mean', 'min']).reset_index()
+    
+    html = f"""
+    <style>
+        .summary-table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        .summary-table th, .summary-table td {{
+            border: 1px solid #e6e6e6;
+            padding: 8px;
+            text-align: left;
+        }}
+        .summary-table th {{
+            background-color: #f2f2f2;
+        }}
+    </style>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th rowspan="2" style="text-align: center; vertical-align: middle;">{header_name}</th>
+          <th colspan="3" style="text-align: center;">수입 단가(USD/KG)</th>
+        </tr>
+        <tr>
+          <th style="text-align: center;">최대</th>
+          <th style="text-align: center;">평균</th>
+          <th style="text-align: center;">최소</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+
+    for index, row in summary_df.iterrows():
+        html += f"""
+        <tr>
+            <td>{row[group_by_col]}</td>
+            <td style="text-align: right;">${row['max']:.2f}</td>
+            <td style="text-align: right;">${row['mean']:.2f}</td>
+            <td style="text-align: right;">${row['min']:.2f}</td>
+        </tr>
+        """
+    
+    html += "</tbody></table>"
+    return html
+
 def reset_analysis_states():
     """모든 분석 상태를 초기화하는 함수"""
     st.session_state.analysis_done = False
@@ -294,8 +343,8 @@ if selected == "시장 경쟁력 분석":
                         importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
                         customer_name_selection = st.selectbox("분석할 고객사를 선택해주세요.", options=importer_list)
                     else:
-                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 수입사 이름이 포함된 파일을 업로드해주세요.")
-                        #customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
+                        st.warning("업로드된 파일에 'Raw Importer Name' 컬럼이 없습니다. 아래에 직접 입력해주세요.")
+                        customer_name_selection = st.text_input("분석할 수입 업체 이름을 입력해주세요.")
                 
                 except Exception as e:
                     st.error("파일을 읽는 중 오류가 발생했습니다. 컬럼명을 확인해주세요.")
