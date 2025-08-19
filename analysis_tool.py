@@ -12,6 +12,15 @@ from collections import Counter
 from streamlit_option_menu import option_menu
 import statsmodels.api as sm
 
+hide_github_button = """
+    <style>
+    #MainMenu {visibility: hidden;}  /* 햄버거 메뉴 */
+    footer {visibility: hidden;}     /* Made with Streamlit */
+    header [data-testid="stActionButton"] {visibility: hidden;} /* GitHub 버튼 */
+    </style>
+"""
+st.markdown(hide_github_button, unsafe_allow_html=True)
+
 # --------------------------------#
 # 데이터 전처리 및 분석 함수 #
 # --------------------------------#
@@ -663,3 +672,4 @@ if selected == "시장 경쟁력 분석":
                                 st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
