@@ -527,7 +527,7 @@ if selected == "시장 경쟁력 분석":
                     if others_volume > 0: display_data.loc[len(display_data)] = {'importer_name': '기타', 'volume': others_volume}
                     
                     competitors = [imp for imp in display_data['importer_name'] if imp != customer_name]
-                    blue_shades = px.colors.sequential.Blues_r
+                    blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1)) if competitors else 1]
                     color_map_pie = {comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
                     color_map_pie[customer_name] = 'red'
                     
@@ -617,7 +617,7 @@ if selected == "시장 경쟁력 분석":
                         
                         importers_in_plot = single_exporter_df_top10['importer_name'].unique()
                         competitors = [imp for imp in importers_in_plot if imp != customer_name]
-                        blue_shades = px.colors.sequential.Blues_r[::(len(px.colors.sequential.Blues_r)//(len(competitors)+1)) if competitors else 1]
+                        blue_shades = px.colors.sequential.Blues_r
                         color_map_box = {comp: blue_shades[i % len(blue_shades)] for i, comp in enumerate(competitors)}
                         color_map_box[customer_name] = 'red'
 
@@ -672,5 +672,6 @@ if selected == "시장 경쟁력 분석":
                                 st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
 
 
