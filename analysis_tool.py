@@ -59,18 +59,43 @@ def get_cluster_name(cluster_labels, preprocessed_names):
     final_cluster_names[-1] = 'Noise'
     return final_cluster_names
 
-def remove_outliers_iqr(df, column_name):
-    """IQR 방식을 사용하여 이상치를 제거하는 함수"""
+def remove_outliers_iqr(df, column_name, cap_percent=0.07):
+    """IQR 방식을 사용하되, 제거 비율을 최대 7%로 제한하여 이상치를 제거하는 함수"""
+    if df.empty:
+        return df
+
     Q1 = df[column_name].quantile(0.25)
     Q3 = df[column_name].quantile(0.75)
     IQR = Q3 - Q1
     lower_bound = Q1 - 1.5 * IQR
     upper_bound = Q3 + 1.5 * IQR
-    initial_rows = len(df)
-    df_filtered = df[(df[column_name] >= lower_bound) & (df[column_name] <= upper_bound)]
-    removed_rows = initial_rows - len(df_filtered)
-    if removed_rows > 0:
-        st.warning(f"분석의 정확도를 위해 시장 데이터의 단가(Unit Price) 이상치 {removed_rows}건을 제거했습니다.")
+    
+    # 잠재적 이상치 식별
+    outliers = df[(df[column_name] < lower_bound) | (df[column_name] > upper_bound)]
+    
+    # 제거 비율이 상한선(7%)을 초과하는지 확인
+    if not outliers.empty and (len(outliers) / len(df)) > cap_percent:
+        num_to_remove = int(len(df) * cap_percent)
+        
+        # 중앙값에서 가장 멀리 떨어진 극단적인 값부터 제거하기 위해 거리 계산
+        median = df[column_name].median()
+        outliers = outliers.copy() # SettingWithCopyWarning 방지
+        outliers['distance'] = (outliers[column_name] - median).abs()
+        
+        # 제거할 인덱스 선택
+        indices_to_remove = outliers.nlargest(num_to_remove, 'distance').index
+        
+        df_filtered = df.drop(indices_to_remove)
+        removed_rows = num_to_remove
+        
+        st.warning(f"이상치가 전체의 {cap_percent:.0%}를 초과하여, 가장 극단적인 {removed_rows}건(상한 적용)만 제거했습니다.")
+    else:
+        # 상한선을 초과하지 않으면, 식별된 모든 이상치 제거
+        df_filtered = df[(df[column_name] >= lower_bound) & (df[column_name] <= upper_bound)]
+        removed_rows = len(df) - len(outliers)
+        if len(outliers) > 0:
+             st.warning(f"분석의 정확도를 위해 시장 데이터의 단가(Unit Price) 이상치 {len(outliers)}건을 제거했습니다.")
+
     return df_filtered
 
 def generate_summary_table_html(df, group_by_col, header_name, value_col='unit_price'):
@@ -672,6 +697,7 @@ if selected == "시장 경쟁력 분석":
                                 st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
 
 
 
