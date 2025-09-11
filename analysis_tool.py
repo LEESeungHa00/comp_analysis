@@ -420,7 +420,7 @@ if selected == "고객사 효율 분석":
                         related_clusters = after_df[after_df['origin_country'] == origin]['product_name'].unique()
                         new_origin_details.append({
                             '신규 원산지': origin,
-                            '관련 품목명': '\n'.join(related_clusters)
+                            '관련 품목명': ','.join(related_clusters)
                         })
                     st.dataframe(pd.DataFrame(new_origin_details))
             else:
@@ -441,7 +441,7 @@ if selected == "고객사 효율 분석":
                         related_clusters = after_df[after_df['Exporter'] == exporter]['product_name'].unique()
                         new_exporter_details.append({
                             '신규 공급사': exporter,
-                            '관련 품목명': '\n'.join(related_clusters)
+                            '관련 품목명': ','.join(related_clusters)
                         })
                     st.dataframe(pd.DataFrame(new_exporter_details))
                 else:
@@ -793,5 +793,6 @@ if selected == "시장 경쟁력 분석":
                                     st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
 
 
