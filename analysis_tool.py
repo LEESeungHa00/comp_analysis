@@ -607,7 +607,7 @@ if selected == "시장 경쟁력 분석":
 
         # <<-- 시뮬레이션 기능을 별도 expander로 분리 -->>
         if top_competitors_list:
-            with st.expander("경쟁 우위 그룹 벤치마킹 시뮬레이션"):
+            with st.expander("경쟁 우위 그룹 벤치마킹 시뮬레이션", expanded=True):
                 with st.form("simulation_form"):
                     sim_start_date = st.date_input("시뮬레이션 시작일", contract_date)
                     sim_end_date = st.date_input("시뮬레이션 종료일")
@@ -698,7 +698,7 @@ if selected == "시장 경쟁력 분석":
                     
                     # <<-- 공급사별 분석을 각각의 expander에 표시 -->>
                     for exporter in customer_exporters_in_year:
-                        with st.expander(f"공급사 '{exporter}' 상세 비교 분석"):
+                        with st.expander(f"공급사 '{exporter}' 상세 비교 분석",expanded=True):
                             single_exporter_df = exporter_analysis_df[exporter_analysis_df['Exporter'] == exporter]
                             
                             st.subheader(f"Volume 및 평균 단가 비교")
@@ -756,7 +756,7 @@ if selected == "시장 경쟁력 분석":
                     
                     # <<-- 분기별 소싱 옵션을 각각의 expander에 표시 -->>
                     for q in range(1, 5):
-                        with st.expander(f"**{q}분기** 대안 소싱 옵션"):
+                        with st.expander(f"**{q}분기** 대안 소싱 옵션",expanded=True):
                             q_df = avg_prices[avg_prices['quarter'] == q]
                             if q_df.empty:
                                 st.write("- 해당 분기에 거래 데이터가 없습니다.")
@@ -793,6 +793,7 @@ if selected == "시장 경쟁력 분석":
                                     st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
 
 
 
