@@ -172,6 +172,108 @@ def reset_market_analysis_states():
 
 st.set_page_config(layout="wide")
 
+# --------------------------#
+#  <<< 인쇄용 CSS 추가 >>>  #
+# --------------------------#
+print_css = """
+<style>
+@media print {
+    /* 1. 페이지 크기 및 여백 설정 (A4 세로) */
+    @page {
+        size: A4 portrait;
+        margin: 2cm 1.5cm; /* 상하 2cm, 좌우 1.5cm 여백 */
+    }
+
+    /* 2. 불필요한 UI 요소 숨기기 */
+    [data-testid="stSidebar"], /* 사이드바 */
+    [data-testid="stActionButton"], /* GitHub 버튼 등 */
+    .stButton, /* 모든 Streamlit 버튼 */
+    .stFileUploader, /* 파일 업로더 */
+    .stForm, /* 폼 전체 */
+    [data-testid="stHeader"], /* Streamlit 헤더 */
+    footer { /* Streamlit 푸터 */
+        display: none !important;
+    }
+
+    /* 3. 메인 콘텐츠 영역을 인쇄 페이지에 맞게 조정 */
+    .block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    section[data-testid="stAppViewContainer"] > section {
+        left: 0 !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 4. Expander (보고서 섹션) 처리 */
+    .stExpander > details[open] {
+        /* [수정] Expander 전체가 페이지 중간에 잘리지 않도록 시도합니다.
+         'page-break-before: always' (강제 새 페이지) 대신 이 규칙을 사용하면,
+         현재 페이지에 공간이 남으면 여러 섹션이 한 페이지에 들어갈 수 있습니다.
+         공간이 부족하면 Expander 전체가 다음 페이지로 넘어갑니다.
+        */
+        page-break-inside: avoid !important; 
+    }
+
+    .stExpander {
+        /* 인쇄 시 테두리 제거 */
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* [중요] 인쇄하려는 Expander는 **반드시 열어둔 상태**여야 합니다.
+       열린 Expander의 제목(summary)만 스타일을 적용하고 화살표는 숨깁니다.
+    */
+    .stExpander > details[open] > summary {
+        font-size: 1.5rem !important;
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+    .stExpander > details[open] > summary svg {
+        display: none !important; /* 토글 화살표 숨기기 */
+    }
+    
+    /* 닫힌 Expander는 인쇄하지 않음 */
+    .stExpander > details:not([open]) {
+         display: none !important;
+    }
+
+    /* 5. 콘텐츠 잘림 방지 */
+    .plotly-chart, /* Plotly 차트 */
+    [data-testid="stDataFrame"], /* 데이터프레임 */
+    .stMarkdown, /* 마크다운 텍스트 */
+    table.summary-table { /* 요약 테이블 */
+        page-break-inside: avoid; /* 요소 내부에서 페이지가 나뉘지 않도록 함 */
+    }
+
+    h1, h2, h3, h4, h5 {
+        page-break-after: avoid; /* 제목 바로 뒤에서 페이지가 나뉘지 않도록 함 */
+    }
+    
+    /* 6. 차트 크기 최적화 */
+    .stPlotlyChart {
+        width: 100% !important;
+        max-width: 100%;
+        overflow: hidden;
+    }
+    
+    /* 7. 배경색 및 색상 강제 인쇄 (브라우저 설정 필요할 수 있음) */
+    body {
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+}
+</style>
+"""
+st.markdown(print_css, unsafe_allow_html=True)
+# --- 인쇄용 CSS 끝 ---
+
+
 # --- 세션 상태 초기화 ---
 if 'analysis_done' not in st.session_state:
     st.session_state.analysis_done = False
@@ -328,7 +430,7 @@ if selected == "고객사 효율 분석":
                 'savings': '${:,.2f}'
             }))
 
-        with st.expander("2. 수입 품목군 정제 및 군집화 (DBSCAN & PCA)"):
+        with st.expander("2. 수입 품목군 정제 및 군집화 (DBSCAN & PCA)", expanded=True): # 인쇄 시 이 섹션부터 새 페이지
             if st.session_state.tfidf_matrix is not None and st.session_state.tfidf_matrix.shape[0] > 0:
                 pca = PCA(n_components=2, random_state=42)
                 components = pca.fit_transform(st.session_state.tfidf_matrix.toarray())
@@ -339,7 +441,11 @@ if selected == "고객사 효율 분석":
                 top_clusters_for_viz = cluster_volume_sorted.head(15).index.tolist()
                 vis_df_filtered = vis_df[vis_df['cluster_name'].isin(top_clusters_for_viz)]
                 st.info(f"클러스터가 너무 많아, 수입량 기준 상위 {len(top_clusters_for_viz)}개 품목군만 그리드에 시각화합니다.")
-                fig1 = px.scatter(vis_df_filtered[vis_df_filtered['cluster_name'] != 'Noise'], x='x', y='y', color='cluster_name', facet_col='cluster_name', facet_col_wrap=5, height=800, 
+                
+                # A4 가로 폭에 맞추기 위해 facet_col_wrap을 4 또는 3으로 조정하는 것이 좋을 수 있습니다.
+                # A4 세로(약 210mm)에서 여백 빼면 약 180mm (약 680px)입니다. wrap=5는 너무 많을 수 있습니다.
+                # 여기서는 4로 조정해봅니다.
+                fig1 = px.scatter(vis_df_filtered[vis_df_filtered['cluster_name'] != 'Noise'], x='x', y='y', color='cluster_name', facet_col='cluster_name', facet_col_wrap=4, height=800, 
                                   title=f"<b>[{st.session_state.customer_name}] 품목 유사도 기반 군집화 (상위 품목군 Grid)</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 {len(top_clusters_for_viz)}개 품목군</span>", 
                                   labels={'x': 'PCA Component 1', 'y': 'PCA Component 2'}, hover_data=['product_name'])
                 fig1.update_traces(marker=dict(size=8, opacity=0.8))
@@ -349,7 +455,7 @@ if selected == "고객사 효율 분석":
                 plot_df_sorted['cluster_name'] = pd.Categorical(plot_df_sorted['cluster_name'], categories=cluster_volume_sorted.index.tolist(), ordered=True)
                 st.dataframe(plot_df_sorted[['product_name', 'product_preprocessed', 'cluster_name']].drop_duplicates().sort_values('cluster_name'))
 
-        with st.expander("3. 주요 수입 품목군 분석 (월별 수입량)"):
+        with st.expander("3. 주요 수입 품목군 분석 (월별 수입량)", expanded=True): # 새 페이지
             plot_df_chart = st.session_state.plot_df.copy()
             plot_df_chart['year_month_str'] = plot_df_chart['year_month'].astype(str)
             cluster_volume = plot_df_chart.groupby(['year_month_str', 'cluster_name'])['volume'].sum().reset_index()
@@ -386,7 +492,7 @@ if selected == "고객사 효율 분석":
 
     
         # <<-- 소싱 변화 분석 상세화 -->>
-        with st.expander("4. 계약 이후 소싱 변화 분석"):
+        with st.expander("4. 계약 이후 소싱 변화 분석", expanded=True): # 새 페이지
             customer_df = st.session_state.customer_df
             contract_date = st.session_state.contract_date
             
@@ -534,7 +640,7 @@ if selected == "시장 경쟁력 분석":
         
         st.subheader(f"'{analyzed_product_name}' 품목 시장 분석 결과 (기준 고객사: {customer_name})")
 
-        with st.expander(f"1. [{analyzed_product_name}] 구매 경쟁력 분석", expanded=True):
+        with st.expander(f"1. [{analyzed_product_name}] 구매 경쟁력 분석", expanded=True): # 새 페이지
             st.markdown("##### Volume 대비 Unit Price 분포 및 시장 추세")
             fig_comp = px.scatter(market_df, x='volume', y='unit_price', trendline="lowess", trendline_color_override="red", hover_data=['importer_name', 'date'], 
                                   title="<b>시장 내 거래 분포 및 평균 가격 추세선</b><br><span style='font-size: 0.8em; color:grey;'>LOWESS 회귀분석 기반</span>",
@@ -556,7 +662,7 @@ if selected == "시장 경쟁력 분석":
                 if customer_rank > 10:
                     st.info(f"참고: **{customer_name}**의 구매 경쟁력 순위는 전체 {len(all_competitors_ranked)}개사 중 **{customer_rank}위**입니다.")
 
-        with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True):
+        with st.expander(f"2. [{analyzed_product_name}] 단가 추세 및 경쟁 우위 그룹 벤치마킹", expanded=True): # 새 페이지
             st.markdown("##### 구매 경쟁력 지수 월별 추이")
             monthly_competitiveness = market_df.groupby(['year_month', 'importer_name'])['competitiveness_index'].mean().unstack()
             
@@ -607,7 +713,7 @@ if selected == "시장 경쟁력 분석":
 
         # <<-- 시뮬레이션 기능을 별도 expander로 분리 -->>
         if top_competitors_list:
-            with st.expander("경쟁 우위 그룹 벤치마킹 시뮬레이션", expanded=True):
+            with st.expander("경쟁 우위 그룹 벤치마킹 시뮬레이션", expanded=True): # 새 페이지
                 with st.form("simulation_form"):
                     sim_start_date = st.date_input("시뮬레이션 시작일", contract_date)
                     sim_end_date = st.date_input("시뮬레이션 종료일")
@@ -630,7 +736,7 @@ if selected == "시장 경쟁력 분석":
                     else:
                         st.warning("해당 기간에 비교할 데이터가 없습니다.")
 
-        with st.expander(f"3. [{analyzed_product_name}] 시장 점유율 및 경쟁사 비교", expanded=True):
+        with st.expander(f"3. [{analyzed_product_name}] 시장 점유율 및 경쟁사 비교", expanded=True): # 새 페이지
             col1, col2 = st.columns(2)
             with col1:
                 years_with_data = sorted(market_df['year'].unique(), reverse=True)
@@ -674,7 +780,7 @@ if selected == "시장 경쟁력 분석":
                     st.plotly_chart(fig6, use_container_width=True)
         
         if 'Exporter' in market_df.columns and 'origin_country' in market_df.columns:
-            with st.expander(f"4. [{analyzed_product_name}] 공급망(공급사/원산지) 분석", expanded=True):
+            with st.expander(f"4. [{analyzed_product_name}] 공급망(공급사/원산지) 분석", expanded=True): # 새 페이지
                 years_with_data_exporter = sorted(market_df['year'].unique(), reverse=True)
                 if years_with_data_exporter:
                     selected_year_exporter = st.selectbox("공급망 분석 연도 선택", options=years_with_data_exporter, key=f"exporter_year_{analyzed_product_name}")
@@ -698,7 +804,7 @@ if selected == "시장 경쟁력 분석":
                     
                     # <<-- 공급사별 분석을 각각의 expander에 표시 -->>
                     for exporter in customer_exporters_in_year:
-                        with st.expander(f"공급사 '{exporter}' 상세 비교 분석",expanded=True):
+                        with st.expander(f"공급사 '{exporter}' 상세 비교 분석",expanded=True): # 이 expander는 인쇄 시 페이지가 나뉘지 않습니다.
                             single_exporter_df = exporter_analysis_df[exporter_analysis_df['Exporter'] == exporter]
                             
                             st.subheader(f"Volume 및 평균 단가 비교")
@@ -756,7 +862,7 @@ if selected == "시장 경쟁력 분석":
                     
                     # <<-- 분기별 소싱 옵션을 각각의 expander에 표시 -->>
                     for q in range(1, 5):
-                        with st.expander(f"**{q}분기** 대안 소싱 옵션",expanded=True):
+                        with st.expander(f"**{q}분기** 대안 소싱 옵션",expanded=True): # 이 expander도 페이지가 나뉘지 않습니다.
                             q_df = avg_prices[avg_prices['quarter'] == q]
                             if q_df.empty:
                                 st.write("- 해당 분기에 거래 데이터가 없습니다.")
@@ -793,8 +899,3 @@ if selected == "시장 경쟁력 분석":
                                     st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
-
-
-
-
-
