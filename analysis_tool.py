@@ -178,11 +178,6 @@ st.set_page_config(layout="wide")
 print_css = """
 <style>
 @media print {
-    /* 1. 페이지 크기 및 여백 설정 (A4 세로) */
-    @page {
-        size: A4 portrait;
-        margin: 2cm 1.5cm; /* 상하 2cm, 좌우 1.5cm 여백 */
-    }
 
     /* 2. 불필요한 UI 요소 숨기기 */
     [data-testid="stSidebar"], /* 사이드바 */
@@ -899,3 +894,4 @@ if selected == "시장 경쟁력 분석":
                                     st.write("- 더 저렴한 원산지 없음")
         else:
             st.warning("'Exporter' 또는 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
