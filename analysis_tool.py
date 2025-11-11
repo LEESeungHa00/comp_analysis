@@ -161,7 +161,21 @@ def reset_analysis_states():
         del st.session_state['analysis_countries']
 
 
-# --- [수정] 'find_column' 함수 정의 추가 ---
+def reset_market_analysis_states():
+    """목표 2 분석 상태만 초기화하는 함수"""
+    st.session_state.market_analysis_done = False
+    keys_to_reset = ['market_df', 'analyzed_product_name', 'selected_customer', 
+                     'market_contract_date', 'top_competitors_list',
+                     'all_competitors_ranked']
+    for key in keys_to_reset:
+        if key in st.session_state:
+            del st.session_state[key]
+    # [추가] 원산지 필터 세션도 리셋
+    if 'analysis_countries' in st.session_state:
+        del st.session_state['analysis_countries']
+
+
+# --- [수정] 'find_column' 함수 정의 추가 (NameError 해결) ---
 def find_column(columns, candidates):
     """가능한 컬럼명 후보 중에서 실제 데이터에 있는 컬럼명을 찾는 함수"""
     for col in candidates:
@@ -336,22 +350,27 @@ if selected == "고객사 효율 분석":
         
         if uploaded_file:
             with st.form(key='analysis_form'):
+                df_for_check = None
                 try:
-                    # CSV 파일 인코딩 시도 (codecs 사용)
-                    try:
-                        with codecs.open(uploaded_file.name, 'r', encoding='utf-8') as f:
-                            df_for_check = pd.read_csv(f)
-                    except UnicodeDecodeError:
+                    # CSV 파일 인코딩 시도 (codecs + seek(0))
+                    if uploaded_file.name.endswith('.csv'):
                         try:
-                            with codecs.open(uploaded_file.name, 'r', encoding='euc-kr') as f:
-                                df_for_check = pd.read_csv(f)
+                            uploaded_file.seek(0)
+                            df_for_check = pd.read_csv(uploaded_file, encoding='utf-8')
                         except UnicodeDecodeError:
-                            with codecs.open(uploaded_file.name, 'r', encoding='cp949') as f:
-                                df_for_check = pd.read_csv(f)
-                    except Exception as e:
-                         # 엑셀 또는 다른 CSV 인코딩 실패시 pandas 기본 로더 재시도
-                         uploaded_file.seek(0) # 파일 포인터 리셋
-                         df_for_check = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                            try:
+                                uploaded_file.seek(0)
+                                df_for_check = pd.read_csv(uploaded_file, encoding='euc-kr')
+                            except UnicodeDecodeError:
+                                uploaded_file.seek(0)
+                                df_for_check = pd.read_csv(uploaded_file, encoding='cp949')
+                    elif uploaded_file.name.endswith('.xlsx'):
+                         uploaded_file.seek(0)
+                         df_for_check = pd.read_excel(uploaded_file)
+
+                    if df_for_check is None:
+                        st.error("파일을 읽는 데 실패했습니다. 지원되는 인코딩(utf-8, euc-kr, cp949)이 아니거나 파일이 손상되었을 수 있습니다.")
+                        st.stop()
 
                     customer_name_input = None
                     if 'Raw Importer Name' not in df_for_check.columns:
@@ -591,22 +610,28 @@ if selected == "시장 경쟁력 분석":
         
         if market_file:
             with st.form("market_analysis_form"):
+                market_df_for_importers = None
                 try:
-                    # CSV 파일 인코딩 시도 (codecs 사용)
-                    try:
-                        with codecs.open(market_file.name, 'r', encoding='utf-8') as f:
-                            market_df_for_importers = pd.read_csv(f)
-                    except UnicodeDecodeError:
+                    # CSV 파일 인코딩 시도 (codecs + seek(0))
+                    if market_file.name.endswith('.csv'):
                         try:
-                            with codecs.open(market_file.name, 'r', encoding='euc-kr') as f:
-                                market_df_for_importers = pd.read_csv(f)
+                            market_file.seek(0)
+                            market_df_for_importers = pd.read_csv(market_file, encoding='utf-8')
                         except UnicodeDecodeError:
-                            with codecs.open(market_file.name, 'r', encoding='cp949') as f:
-                                market_df_for_importers = pd.read_csv(f)
-                    except Exception as e:
-                         # 엑셀 또는 다른 CSV 인코딩 실패시 pandas 기본 로더 재시도
-                         market_file.seek(0) # 파일 포인터 리셋
-                         market_df_for_importers = pd.read_csv(market_file) if market_file.name.endswith('.csv') else pd.read_excel(market_file)
+                            try:
+                                market_file.seek(0)
+                                market_df_for_importers = pd.read_csv(market_file, encoding='euc-kr')
+                            except UnicodeDecodeError:
+                                market_file.seek(0)
+                                market_df_for_importers = pd.read_csv(market_file, encoding='cp949')
+                    elif market_file.name.endswith('.xlsx'):
+                         market_file.seek(0)
+                         market_df_for_importers = pd.read_excel(market_file)
+
+                    if market_df_for_importers is None:
+                        st.error("파일을 읽는 데 실패했습니다. 지원되는 인코딩(utf-8, euc-kr, cp949)이 아니거나 파일이 손상되었을 수 있습니다.")
+                        st.stop()
+
                     
                     if 'Raw Importer Name' in market_df_for_importers.columns:
                         importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
@@ -628,7 +653,7 @@ if selected == "시장 경쟁력 분석":
                 with st.spinner('시장 데이터를 분석 중입니다. 파일 크기에 따라 시간이 걸릴 수 있습니다...'):
                     market_df = market_df_for_importers.copy()
                     
-                    # --- [수정 1] 'Export Country' 컬럼을 동적으로 찾도록 수정 ---
+                    # --- [수정 1] 'Export Country' 컬럼을 동적으로 찾도록 수정 (KeyError 해결) ---
                     
                     # 컬럼을 동적으로 찾기
                     date_col = find_column(market_df.columns, ['Date', 'date'])
@@ -661,7 +686,7 @@ if selected == "시장 경쟁력 분석":
                     market_df['year'] = market_df['date'].dt.year
                     market_df['quarter'] = market_df['date'].dt.quarter
                     
-                    # --- [수정 2] 필수 컬럼 검증 로직 수정 ---
+                    # --- [수정 2] 필수 컬럼 검증 로직 수정 (KeyError 해결) ---
                     required_market_cols = ['date', 'importer_name', 'product_name', 'volume', 'unit_price', 'Exporter', 'origin_country', 'export_country']
                     
                     # 필수 컬럼 누락 시 중지
@@ -829,7 +854,7 @@ if selected == "시장 경쟁력 분석":
                 top_competitors_avg_price = top_competitors_df.groupby('year_month')['unit_price'].mean().rename('top_competitors_avg_price')
                 fig4.add_trace(go.Scatter(x=top_competitors_avg_price.index.to_timestamp(), y=top_competitors_avg_price, mode='lines+markers', name='경쟁 우위 그룹 평균', line=dict(color='green', dash='dash')))
             else:
-                st.success(f"**벤치마크 분석:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
+                st.success(f"**벤치마K:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
 
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
