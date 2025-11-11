@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from collections import Counter
 from streamlit_option_menu import option_menu
 import statsmodels.api as sm
-import codecs # <--- [추가] 인코딩 처리를 위해 추가
+import codecs # <--- [추가 1] 인코딩 처리를 위해 추가
 
 # hide_github_button = """
 #     <style>
@@ -25,7 +25,7 @@ import codecs # <--- [추가] 인코딩 처리를 위해 추가
 # --------------------------------#
 # 데이터 전처리 및 분석 함수 #
 # --------------------------------#
-# (원본 코드의 함수들 - 수정 없음)
+
 def preprocess_product_name(name):
     """'REPORTED PRODUCT NAME'을 정제하는 함수"""
     if not isinstance(name, str): return ''
@@ -60,7 +60,8 @@ def get_cluster_name(cluster_labels, preprocessed_names):
     final_cluster_names[-1] = 'Noise'
     return final_cluster_names
 
-def remove_outliers_iqr(df, column_name, cap_percent=0.07):
+# --- [수정 2] iqr_multiplier 파라미터 추가 (슬라이더 연동) ---
+def remove_outliers_iqr(df, column_name, cap_percent=0.07, iqr_multiplier=1.5):
     """IQR 방식을 사용하되, 제거 비율을 최대 7%로 제한하여 이상치를 제거하는 함수"""
     if df.empty:
         return df
@@ -68,8 +69,9 @@ def remove_outliers_iqr(df, column_name, cap_percent=0.07):
     Q1 = df[column_name].quantile(0.25)
     Q3 = df[column_name].quantile(0.75)
     IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
+    # --- [수정 3] 1.5 대신 iqr_multiplier 사용 ---
+    lower_bound = Q1 - iqr_multiplier * IQR
+    upper_bound = Q3 + iqr_multiplier * IQR
     
     # 잠재적 이상치 식별
     outliers = df[(df[column_name] < lower_bound) | (df[column_name] > upper_bound)]
@@ -174,8 +176,7 @@ def reset_market_analysis_states():
     if 'analysis_countries' in st.session_state:
         del st.session_state['analysis_countries']
 
-
-# --- [수정] 'find_column' 함수 정의 추가 (NameError 해결) ---
+# --- [추가 4] 'find_column' 함수 정의 (NameError 해결) ---
 def find_column(columns, candidates):
     """가능한 컬럼명 후보 중에서 실제 데이터에 있는 컬럼명을 찾는 함수"""
     for col in candidates:
@@ -187,7 +188,7 @@ def find_column(columns, candidates):
             if actual_col.lower() == col.lower():
                 return actual_col
     return None
-# --- [수정] 끝 ---
+# --- [추가 4] 끝 ---
 
 
 # --------------------------#
@@ -231,11 +232,6 @@ print_css = """
 
     /* 4. Expander (보고서 섹션) 처리 */
     .stExpander > details[open] {
-        /* [수정] Expander 전체가 페이지 중간에 잘리지 않도록 시도합니다.
-          'page-break-before: always' (강제 새 페이지) 대신 이 규칙을 사용하면,
-          현재 페이지에 공간이 남으면 여러 섹션이 한 페이지에 들어갈 수 있습니다.
-          공간이 부족하면 Expander 전체가 다음 페이지로 넘어갑니다.
-        */
         page-break-inside: avoid !important; 
     }
 
@@ -245,9 +241,6 @@ print_css = """
         box-shadow: none !important;
     }
 
-    /* [중요] 인쇄하려는 Expander는 **반드시 열어둔 상태**여야 합니다.
-       열린 Expander의 제목(summary)만 스타일을 적용하고 화살표는 숨깁니다.
-    */
     .stExpander > details[open] > summary {
         font-size: 1.5rem !important;
         font-weight: bold;
@@ -333,7 +326,7 @@ with st.sidebar:
     )
 
 # ==============================================================================
-# 페이지 1: 고객사 효율 분석 (원본 코드 - 수정 없음)
+# 페이지 1: 고객사 효율 분석 (원본 코드 - 파일 읽기 로직만 수정)
 # ==============================================================================
 if selected == "고객사 효율 분석":
     st.title('💲 고객사 효율 분석 (Overview)')
@@ -343,8 +336,6 @@ if selected == "고객사 효율 분석":
     
     if not st.session_state.analysis_done:
         st.header("⚙️ 분석 설정")
-        # [참고] 이 탭은 원본 요청대로 수정하지 않습니다.
-        # 이 탭은 단일 고객사 파일을 업로드합니다.
         uploaded_file = st.file_uploader("고객사 데이터 파일을 업로드하세요", type=['csv', 'xlsx']) 
         st.caption("※ 하나의 회사 정보를 가지고 있는 TDS raw file을 업로드해주세요.")
         
@@ -352,7 +343,7 @@ if selected == "고객사 효율 분석":
             with st.form(key='analysis_form'):
                 df_for_check = None
                 try:
-                    # CSV 파일 인코딩 시도 (codecs + seek(0))
+                    # --- [수정 5] 파일 읽기 오류 방지 로직 (seek(0) 사용) ---
                     if uploaded_file.name.endswith('.csv'):
                         try:
                             uploaded_file.seek(0)
@@ -371,6 +362,7 @@ if selected == "고객사 효율 분석":
                     if df_for_check is None:
                         st.error("파일을 읽는 데 실패했습니다. 지원되는 인코딩(utf-8, euc-kr, cp949)이 아니거나 파일이 손상되었을 수 있습니다.")
                         st.stop()
+                    # --- [수정 5] 끝 ---
 
                     customer_name_input = None
                     if 'Raw Importer Name' not in df_for_check.columns:
@@ -388,14 +380,13 @@ if selected == "고객사 효율 분석":
                 with st.spinner('고객사 데이터를 분석 중입니다...'):
                     df = df_for_check.copy()
                     
-                    # 컬럼 이름 변경 (신규 컬럼 추가)
                     rename_dict = {
                         'Date': 'date', 
                         'Reported Product Name': 'product_name', 
                         'Volume': 'volume', 
                         'Unit Price': 'unit_price',
-                        'Origin Country': 'origin_country', # 원산지
-                        'Exporter': 'Exporter' # 공급사
+                        'Origin Country': 'origin_country', 
+                        'Exporter': 'Exporter'
                     }
                     if 'Raw Importer Name' in df.columns:
                         rename_dict['Raw Importer Name'] = 'importer_name'
@@ -483,9 +474,6 @@ if selected == "고객사 효율 분석":
                 vis_df_filtered = vis_df[vis_df['cluster_name'].isin(top_clusters_for_viz)]
                 st.info(f"클러스터가 너무 많아, 수입량 기준 상위 {len(top_clusters_for_viz)}개 품목군만 그리드에 시각화합니다.")
                 
-                # A4 가로 폭에 맞추기 위해 facet_col_wrap을 4 또는 3으로 조정하는 것이 좋을 수 있습니다.
-                # A4 세로(약 210mm)에서 여백 빼면 약 180mm (약 680px)입니다. wrap=5는 너무 많을 수 있습니다.
-                # 여기서는 4로 조정해봅니다.
                 fig1 = px.scatter(vis_df_filtered[vis_df_filtered['cluster_name'] != 'Noise'], x='x', y='y', color='cluster_name', facet_col='cluster_name', facet_col_wrap=4, height=800, 
                                   title=f"<b>[{st.session_state.customer_name}] 품목 유사도 기반 군집화 (상위 품목군 Grid)</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 {len(top_clusters_for_viz)}개 품목군</span>", 
                                   labels={'x': 'PCA Component 1', 'y': 'PCA Component 2'}, hover_data=['product_name'])
@@ -502,7 +490,6 @@ if selected == "고객사 효율 분석":
             cluster_volume = plot_df_chart.groupby(['year_month_str', 'cluster_name'])['volume'].sum().reset_index()
             sorted_clusters = st.session_state.plot_df.groupby('cluster_name')['volume'].sum().sort_values(ascending=False).index.tolist()
             
-            # 월별 수입량 막대그래프
             fig2 = px.bar(cluster_volume, x='year_month_str', y='volume', color='cluster_name', 
                           title=f"<b>[{st.session_state.customer_name}] 주요 수입 품목군 월별 수입량(KG)</b>", 
                           labels={'year_month_str': '연-월', 'volume': '수입량(KG)', 'cluster_name': '품목 클러스터'}, 
@@ -511,7 +498,6 @@ if selected == "고객사 효율 분석":
             
             st.markdown("---")
 
-            # 최근 3개월 수입 비중 원형 그래프 (신규 기능)
             st.subheader("최근 3개월 수입 품목 비중")
             customer_df_for_pie = st.session_state.customer_df.copy()
             if not customer_df_for_pie.empty:
@@ -532,7 +518,6 @@ if selected == "고객사 효율 분석":
                 st.warning("분석할 데이터가 없습니다.")
 
     
-        # <<-- 소싱 변화 분석 상세화 -->>
         with st.expander("4. 계약 이후 소싱 변화 분석", expanded=True): # 새 페이지
             customer_df = st.session_state.customer_df
             contract_date = st.session_state.contract_date
@@ -540,7 +525,6 @@ if selected == "고객사 효율 분석":
             before_df = customer_df[customer_df['date'] < contract_date]
             after_df = customer_df[customer_df['date'] >= contract_date]
 
-            # 1. 신규 거래 품목군
             st.subheader("신규 거래 품목군")
             before_clusters = set(before_df['cluster_name'].unique())
             after_clusters = set(after_df['cluster_name'].unique())
@@ -554,7 +538,6 @@ if selected == "고객사 효율 분석":
 
             st.markdown("---")
             
-            # 2. 신규 거래 원산지
             if 'origin_country' in customer_df.columns:
                 st.subheader("신규 거래 원산지")
                 before_origins = set(before_df['origin_country'].dropna().unique())
@@ -575,7 +558,6 @@ if selected == "고객사 효율 분석":
             
             st.markdown("---")
 
-            # 3. 신규 거래 공급사
             if 'Exporter' in customer_df.columns:
                 st.subheader("신규 거래 공급사")
                 before_exporters = set(before_df['Exporter'].dropna().unique())
@@ -595,7 +577,7 @@ if selected == "고객사 효율 분석":
                     st.info("계약 이후 새로 추가된 공급사는 없습니다.")
 
 # ==============================================================================
-# 페이지 2: 시장 경쟁력 분석 (여기가 수정 대상)
+# 페이지 2: 시장 경쟁력 분석 (모든 수정 사항이 이 섹션에 적용됨)
 # ==============================================================================
 if selected == "시장 경쟁력 분석":
     st.title('🏆 시장 경쟁력 상세 분석 (Drill-down)')
@@ -612,7 +594,7 @@ if selected == "시장 경쟁력 분석":
             with st.form("market_analysis_form"):
                 market_df_for_importers = None
                 try:
-                    # CSV 파일 인코딩 시도 (codecs + seek(0))
+                    # --- [수정 6] 파일 읽기 오류 방지 로직 (seek(0) 사용) ---
                     if market_file.name.endswith('.csv'):
                         try:
                             market_file.seek(0)
@@ -631,7 +613,7 @@ if selected == "시장 경쟁력 분석":
                     if market_df_for_importers is None:
                         st.error("파일을 읽는 데 실패했습니다. 지원되는 인코딩(utf-8, euc-kr, cp949)이 아니거나 파일이 손상되었을 수 있습니다.")
                         st.stop()
-
+                    # --- [수정 6] 끝 ---
                     
                     if 'Raw Importer Name' in market_df_for_importers.columns:
                         importer_list = sorted(market_df_for_importers['Raw Importer Name'].unique())
@@ -647,14 +629,25 @@ if selected == "시장 경쟁력 분석":
                 
                 analyzed_product_name_input = st.text_input("분석할 품목명을 입력하세요 (예: 건면)")
                 contract_date_input = st.date_input("분석 기준이 될 계약 시작일을 선택하세요.")
+
+                # --- [수정 7] IQR 배수 조절 슬라이더 및 툴팁 추가 ---
+                iqr_multiplier_input = st.slider(
+                    "이상치 제거 민감도 (IQR 배수)", 
+                    min_value=1.5, 
+                    max_value=3.0, 
+                    value=1.5, 
+                    step=0.1, 
+                    help="값이 클수록 '정상' 데이터 범위를 넓게 봅니다. (예: 3.0은 더 적은 이상치를 제거)"
+                )
+                # --- [수정 7] 끝 ---
+
                 market_submitted = st.form_submit_button("시장 경쟁력 분석 시작")
 
             if market_submitted and customer_name_selection and analyzed_product_name_input:
                 with st.spinner('시장 데이터를 분석 중입니다. 파일 크기에 따라 시간이 걸릴 수 있습니다...'):
                     market_df = market_df_for_importers.copy()
                     
-                    # --- [수정 1] 'Export Country' 컬럼을 동적으로 찾도록 수정 (KeyError 해결) ---
-                    
+                    # --- [수정 8] 'Export Country' 컬럼을 동적으로 찾도록 수정 (KeyError 해결) ---
                     # 컬럼을 동적으로 찾기
                     date_col = find_column(market_df.columns, ['Date', 'date'])
                     product_col = find_column(market_df.columns, ['Reported Product Name', 'product_name'])
@@ -679,14 +672,14 @@ if selected == "시장 경쟁력 분석":
                         market_df['importer_name'] = customer_name_selection 
                     
                     market_df.rename(columns=rename_dict, inplace=True)
-                    # --- [수정 1] 끝 ---
+                    # --- [수정 8] 끝 ---
 
                     market_df['date'] = pd.to_datetime(market_df['date'])
                     market_df['year_month'] = market_df['date'].dt.to_period('M')
                     market_df['year'] = market_df['date'].dt.year
                     market_df['quarter'] = market_df['date'].dt.quarter
                     
-                    # --- [수정 2] 필수 컬럼 검증 로직 수정 (KeyError 해결) ---
+                    # --- [수정 9] 필수 컬럼 검증 로직 수정 (KeyError 해결) ---
                     required_market_cols = ['date', 'importer_name', 'product_name', 'volume', 'unit_price', 'Exporter', 'origin_country', 'export_country']
                     
                     # 필수 컬럼 누락 시 중지
@@ -695,11 +688,18 @@ if selected == "시장 경쟁력 분석":
                         st.error(f"필수 컬럼이 누락되었습니다: {', '.join(missing_cols)}. 'Export Country' 등의 컬럼이 파일에 포함되어 있는지 확인해주세요.")
                         st.stop()
                     
-                    # [수정 3] dropna도 수정된 필수 컬럼 리스트로 수행
+                    # dropna도 수정된 필수 컬럼 리스트로 수행
                     market_df = market_df.dropna(subset=required_market_cols)
-                    # --- [수정 2 & 3] 끝 ---
+                    # --- [수정 9] 끝 ---
 
-                    market_df = remove_outliers_iqr(market_df, 'unit_price')
+                    # --- [수정 10] 함수 호출 시 iqr_multiplier_input 값 전달 ---
+                    market_df = remove_outliers_iqr(
+                        market_df, 
+                        'unit_price', 
+                        cap_percent=0.07, # 기존 캡 로직은 유지
+                        iqr_multiplier=iqr_multiplier_input # 사용자가 선택한 값 전달
+                    )
+                    # --- [수정 10] 끝 ---
                     
                     lowess_results = sm.nonparametric.lowess(market_df['unit_price'], market_df['volume'], frac=0.5)
                     market_df['expected_price'] = np.interp(market_df['volume'], lowess_results[:, 0], lowess_results[:, 1])
@@ -720,21 +720,22 @@ if selected == "시장 경쟁력 분석":
                     st.session_state.top_competitors_list = top_competitors_list
                     st.session_state.all_competitors_ranked = all_competitors_ranked
                     st.session_state.market_analysis_done = True
-                    st.session_state.analysis_countries = ["전체"] # <-- [수정 3] 분석 실행 시 필터 기본값 '전체'로 설정
+                    st.session_state.analysis_countries = ["전체"] # <-- [수정 11] 분석 실행 시 필터 기본값 '전체'로 설정
                 st.rerun()
 
     if st.session_state.get('market_analysis_done', False):
         customer_name = st.session_state.selected_customer
         
-        # [수정 4] market_df를 세션에서 바로 가져오되, 필터링을 위해 'full_market_df'로 임시 저장
+        # [수정 12] market_df를 세션에서 바로 가져오되, 필터링을 위해 'full_market_df'로 임시 저장
         full_market_df = st.session_state.market_df 
         
         analyzed_product_name = st.session_state.analyzed_product_name
         contract_date = st.session_state.market_contract_date
-        top_competitors_list = st.session_state.top_competitors_list
-        all_competitors_ranked = st.session_state.all_competitors_ranked
+        # [수정 13] 필터링 전 랭킹은 여기서 더 이상 사용하지 않음
+        # top_competitors_list = st.session_state.top_competitors_list (삭제)
+        # all_competitors_ranked = st.session_state.all_competitors_ranked (삭제)
         
-        # --- [수정 5] 요청하신 원산지(수출국) 필터 UI 추가 ---
+        # --- [수정 14] 요청하신 원산지(수출국) 필터 UI 추가 ---
         all_countries = sorted(full_market_df['export_country'].astype(str).unique())
         all_countries_options = ["전체"] + all_countries
         
@@ -753,9 +754,9 @@ if selected == "시장 경쟁력 분석":
         
         # 필터 선택 값을 세션 상태에 즉시 업데이트
         st.session_state.analysis_countries = selected_countries
-        # --- 필터 UI 끝 ---
+        # --- [수정 14] 필터 UI 끝 ---
 
-        # --- [수정 6] 필터 적용 로직 ---
+        # --- [수정 15] 필터 적용 로직 ---
         current_selection = st.session_state.analysis_countries
         
         if not current_selection: # 아무것도 선택 안하면 '전체'로 간주
@@ -780,16 +781,16 @@ if selected == "시장 경쟁력 분석":
         if market_df.empty:
             st.warning(f"'{analyzed_product_name}'에 대해 선택하신 원산지에 해당하는 데이터가 없습니다.")
             st.stop() # 데이터 없으면 이하 분석 중지
-        # --- 필터 적용 로직 끝 ---
+        # --- [수정 15] 필터 적용 로직 끝 ---
         
-        # [중요] 필터링된 market_df를 기준으로 경쟁사 랭킹 *다시 계산*
-        # (필터에 따라 순위가 바뀌어야 함)
+        # --- [수정 16] 필터링된 market_df를 기준으로 경쟁사 랭킹 *다시 계산* ---
         filtered_competitors_ranked = market_df.groupby('importer_name')['competitiveness_index'].mean().sort_values(ascending=False).reset_index()
         customer_rank_info_filtered = filtered_competitors_ranked[filtered_competitors_ranked['importer_name'] == customer_name]
         customer_rank_filtered = customer_rank_info_filtered.index[0] if not customer_rank_info_filtered.empty else len(filtered_competitors_ranked)
         top_competitors_list_filtered = filtered_competitors_ranked.iloc[:customer_rank_filtered]['importer_name'].tolist()
         if customer_name in top_competitors_list_filtered:
             top_competitors_list_filtered.remove(customer_name)
+        # --- [수정 16] 끝 ---
 
 
         with st.expander(f"1. [{analyzed_product_name}] 구매 경쟁력 분석", expanded=True): # 새 페이지
@@ -800,7 +801,8 @@ if selected == "시장 경쟁력 분석":
             st.plotly_chart(fig_comp, use_container_width=True)
             
             st.markdown("##### 구매 경쟁력 상위 10개사")
-            top_10_competitors = filtered_competitors_ranked.head(10) # <--- 필터링된 랭킹 사용
+            # --- [수정 17] 필터링된 랭킹 사용 ---
+            top_10_competitors = filtered_competitors_ranked.head(10)
             
             def highlight_customer(row):
                 color = 'background-color: lightblue' if row.importer_name == customer_name else ''
@@ -808,6 +810,7 @@ if selected == "시장 경쟁력 분석":
             
             st.dataframe(top_10_competitors.style.apply(highlight_customer, axis=1).format({'competitiveness_index': '{:,.2f}'}))
             
+            # --- [수정 18] 필터링된 랭킹 정보 사용 ---
             if not customer_rank_info_filtered.empty:
                 customer_rank = customer_rank_info_filtered.index[0] + 1
                 if customer_rank > 10:
@@ -828,7 +831,8 @@ if selected == "시장 경쟁력 분석":
             if customer_monthly_comp is not None:
                 fig_comp_trend.add_trace(go.Scatter(x=customer_monthly_comp.index.to_timestamp(), y=customer_monthly_comp, mode='lines+markers', name=f'{customer_name} 경쟁력 지수', line=dict(color='red')))
             
-            if top_competitors_list_filtered: # <--- 필터링된 랭킹 사용
+            # --- [수정 19] 필터링된 랭킹 사용 ---
+            if top_competitors_list_filtered: 
                 top_competitors_monthly_comp = monthly_competitiveness[top_competitors_list_filtered]
                 top_competitors_avg_monthly_comp = top_competitors_monthly_comp.mean(axis=1)
                 fig_comp_trend.add_trace(go.Scatter(x=top_competitors_avg_monthly_comp.index.to_timestamp(), y=top_competitors_avg_monthly_comp, mode='lines+markers', name='경쟁 우위 그룹 평균 지수', line=dict(color='green', dash='dash')))
@@ -847,14 +851,15 @@ if selected == "시장 경쟁력 분석":
             fig4.add_trace(go.Scatter(x=market_avg_price.index.to_timestamp(), y=market_avg_price, mode='lines+markers', name='시장 전체 평균 단가', line=dict(width=3)))
             fig4.add_trace(go.Scatter(x=customer_avg_price.index.to_timestamp(), y=customer_avg_price, mode='lines+markers', name=f'{customer_name} 평균 단가', line=dict(color='red')))
             
-            if top_competitors_list_filtered: # <--- 필터링된 랭킹 사용
+            # --- [수정 20] 필터링된 랭킹 사용 ---
+            if top_competitors_list_filtered: 
                 st.info(f"**벤치마크: 경쟁 우위 그룹 평균**")
                 st.caption("※ '경쟁 우위 그룹'은 '구매 경쟁력 분석'의 순위에서 현재 선택된 고객사보다 높은 순위를 기록한 모든 기업들의 평균입니다.")
-                top_competitors_df = market_df[market_df['importer_name'].isin(top_competitors_list_filtered)] # <--- 필터링된 랭킹 사용
+                top_competitors_df = market_df[market_df['importer_name'].isin(top_competitors_list_filtered)] 
                 top_competitors_avg_price = top_competitors_df.groupby('year_month')['unit_price'].mean().rename('top_competitors_avg_price')
                 fig4.add_trace(go.Scatter(x=top_competitors_avg_price.index.to_timestamp(), y=top_competitors_avg_price, mode='lines+markers', name='경쟁 우위 그룹 평균', line=dict(color='green', dash='dash')))
             else:
-                st.success(f"**경쟁력 분석석:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
+                st.success(f"**벤치마크 분석:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
 
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
@@ -863,11 +868,12 @@ if selected == "시장 경쟁력 분석":
             col1, col2, col3 = st.columns(3)
             col1.metric("시장 전체 평균", f"${market_df['unit_price'].mean():.2f}")
             col2.metric(f"{customer_name} 평균", f"${customer_market_df['unit_price'].mean():.2f}")
-            if top_competitors_list_filtered: # <--- 필터링된 랭킹 사용
+            # --- [수정 21] 필터링된 랭킹 사용 ---
+            if top_competitors_list_filtered: 
                 col3.metric("경쟁 우위 그룹 평균", f"${top_competitors_df['unit_price'].mean():.2f}")
 
-        # <<-- 시뮬레이션 기능을 별도 expander로 분리 -->>
-        if top_competitors_list_filtered: # <--- 필터링된 랭킹 사용
+        # --- [수정 22] 필터링된 랭킹 사용 ---
+        if top_competitors_list_filtered: 
             with st.expander("경쟁 우위 그룹 벤치마킹 시뮬레이션", expanded=True): # 새 페이지
                 with st.form("simulation_form"):
                     sim_start_date = st.date_input("시뮬레이션 시작일", contract_date)
@@ -875,7 +881,6 @@ if selected == "시장 경쟁력 분석":
                     run_simulation = st.form_submit_button("예상 절감액 계산")
                 
                 if run_simulation:
-                    # [참고] 시뮬레이션은 필터링된 'top_competitors_avg_price'를 사용
                     sim_df = pd.merge(customer_avg_price, top_competitors_avg_price, left_index=True, right_index=True, how='inner')
                     customer_volume_monthly = customer_market_df.groupby('year_month')['volume'].sum()
                     sim_df = pd.merge(sim_df, customer_volume_monthly, left_index=True, right_index=True, how='inner')
@@ -935,7 +940,7 @@ if selected == "시장 경쟁력 분석":
                     fig6 = px.bar(avg_price_by_importer, x='importer_name', y='unit_price', title=f"<b>{selected_year_price}년 고객사와 수입 상위 5개사 단가 비교</b><br><span style='font-size: 0.8em; color:grey;'>수입 중량 기준 상위 5개사</span>", labels={'importer_name': '수입사', 'unit_price': '평균 단가(USD/KG)'}, color='importer_name', color_discrete_map=color_map_bar)
                     st.plotly_chart(fig6, use_container_width=True)
         
-        # [수정 7] 'Exporter' 및 'export_country' 존재 여부 확인 (origin_country는 원래 있었음)
+        # --- [수정 23] 'export_country' 컬럼도 확인하도록 if문 변경 ---
         if 'Exporter' in market_df.columns and 'origin_country' in market_df.columns and 'export_country' in market_df.columns:
             with st.expander(f"4. [{analyzed_product_name}] 공급망(공급사/원산지) 분석", expanded=True): # 새 페이지
                 years_with_data_exporter = sorted(market_df['year'].unique(), reverse=True)
@@ -1015,10 +1020,10 @@ if selected == "시장 경쟁력 분석":
 
                     st.subheader(f"{selected_year_exporter}년 분기별 대안 소싱 옵션")
                     
-                    # [수정 8] 'export_country'를 사용하도록 groupby 컬럼 변경
+                    # --- [수정 24] 'export_country'를 사용하도록 groupby 컬럼 변경 ---
                     avg_prices = exporter_analysis_df.groupby(['quarter', 'Exporter', 'export_country']).agg(avg_price=('unit_price', 'mean'), representative_product=('product_name', 'first')).reset_index()
                     
-                    # [수정 9] 'export_country'를 기준으로 고객사 원산지 추출
+                    # --- [수정 25] 'export_country'를 기준으로 고객사 원산지 추출 ---
                     customer_origins = exporter_analysis_df[exporter_analysis_df['importer_name'] == customer_name]['export_country'].unique()
 
 
@@ -1037,7 +1042,7 @@ if selected == "시장 경쟁력 분석":
                             else:
                                 st.write("- 공급사 거래 없음")
                             
-                            # [수정 10] 'export_country' 기준으로 현재 원산지 옵션 표시
+                            # --- [수정 26] 'export_country' 기준으로 현재 원산지 옵션 표시 ---
                             customer_origins_q_df = q_df[q_df['export_country'].isin(customer_origins)].groupby('export_country')['avg_price'].mean().reset_index().sort_values('avg_price')
                             if not customer_origins_q_df.empty:
                                 st.dataframe(customer_origins_q_df.rename(columns={'export_country': '원산지(수출국)', 'avg_price': '평균 단가(USD/KG)'}).style.format({'평균 단가(USD/KG)': '${:,.2f}'}))
@@ -1053,7 +1058,7 @@ if selected == "시장 경쟁력 분석":
                                 else:
                                     st.write("- 더 저렴한 공급사 없음")
                             
-                            # [수정 11] 'export_country' 기준으로 대안 원산지 탐색
+                            # --- [수정 27] 'export_country' 기준으로 대안 원산지 탐색 ---
                             customer_origin_avg_price_q = q_df[q_df['export_country'].isin(customer_origins)].groupby('export_country')['avg_price'].mean().mean()
                             if not pd.isna(customer_origin_avg_price_q):
                                 cheaper_origins = q_df.groupby('export_country')['avg_price'].mean().reset_index()
@@ -1062,6 +1067,6 @@ if selected == "시장 경쟁력 분석":
                                     st.dataframe(cheaper_origins.rename(columns={'export_country': '추천 원산지(수출국)', 'avg_price': '평균 단가(USD/KG)'}).style.format({'평균 단가(USD/KG)': '${:,.2f}'}))
                                 else:
                                     st.write("- 더 저렴한 원산지(수출국) 없음")
+        # --- [수정 28] 경고 메시지 변경 ---
         else:
             st.warning("'Exporter' 또는 'Export Country' / 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
-
