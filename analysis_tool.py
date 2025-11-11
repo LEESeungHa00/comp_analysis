@@ -161,18 +161,20 @@ def reset_analysis_states():
         del st.session_state['analysis_countries']
 
 
-def reset_market_analysis_states():
-    """목표 2 분석 상태만 초기화하는 함수"""
-    st.session_state.market_analysis_done = False
-    keys_to_reset = ['market_df', 'analyzed_product_name', 'selected_customer', 
-                     'market_contract_date', 'top_competitors_list',
-                     'all_competitors_ranked']
-    for key in keys_to_reset:
-        if key in st.session_state:
-            del st.session_state[key]
-    # [추가] 원산지 필터 세션도 리셋
-    if 'analysis_countries' in st.session_state:
-        del st.session_state['analysis_countries']
+# --- [수정] 'find_column' 함수 정의 추가 ---
+def find_column(columns, candidates):
+    """가능한 컬럼명 후보 중에서 실제 데이터에 있는 컬럼명을 찾는 함수"""
+    for col in candidates:
+        if col in columns:
+            return col
+    # 대소문자 구분 없이 재시도
+    for col in candidates:
+        for actual_col in columns:
+            if actual_col.lower() == col.lower():
+                return actual_col
+    return None
+# --- [수정] 끝 ---
+
 
 # --------------------------#
 # 메인 애플리케이션 UI 및 로직 #
