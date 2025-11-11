@@ -854,7 +854,7 @@ if selected == "시장 경쟁력 분석":
                 top_competitors_avg_price = top_competitors_df.groupby('year_month')['unit_price'].mean().rename('top_competitors_avg_price')
                 fig4.add_trace(go.Scatter(x=top_competitors_avg_price.index.to_timestamp(), y=top_competitors_avg_price, mode='lines+markers', name='경쟁 우위 그룹 평균', line=dict(color='green', dash='dash')))
             else:
-                st.success(f"**벤치마K:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
+                st.success(f"**경쟁력 분석석:** `{customer_name}`님이 (현재 필터에서) 가장 우수한 구매 경쟁력을 보이고 있습니다!")
 
             fig4.update_layout(title=f'<b>[{analyzed_product_name}] 단가 추세</b>', xaxis_title='연-월', yaxis_title='평균 단가(USD/KG)')
             st.plotly_chart(fig4, use_container_width=True)
@@ -1064,3 +1064,4 @@ if selected == "시장 경쟁력 분석":
                                     st.write("- 더 저렴한 원산지(수출국) 없음")
         else:
             st.warning("'Exporter' 또는 'Export Country' / 'Origin Country' 컬럼이 없어 공급망 분석을 수행할 수 없습니다.")
+
