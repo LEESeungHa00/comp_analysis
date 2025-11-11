@@ -626,43 +626,52 @@ if selected == "시장 경쟁력 분석":
                 with st.spinner('시장 데이터를 분석 중입니다. 파일 크기에 따라 시간이 걸릴 수 있습니다...'):
                     market_df = market_df_for_importers.copy()
                     
-                    # --- [수정 1] 'Export Country' 컬럼 추가 ---
-                    rename_dict = {
-                        'Date': 'date', 
-                        'Reported Product Name': 'product_name', 
-                        'Volume': 'volume', 
-                        'Unit Price': 'unit_price', 
-                        'Origin Country': 'origin_country',
-                        'Export Country': 'export_country' # <-- 요청 사항
-                    }
-                    if 'Raw Importer Name' in market_df.columns:
-                        rename_dict['Raw Importer Name'] = 'importer_name'
-                    else:
-                        market_df['importer_name'] = customer_name_selection # 직접 입력한 경우
+                    # --- [수정 1] 'Export Country' 컬럼을 동적으로 찾도록 수정 ---
                     
-                    # [추가] Exporter도 rename
-                    if 'Exporter' in market_df.columns:
-                        rename_dict['Exporter'] = 'Exporter'
+                    # 컬럼을 동적으로 찾기
+                    date_col = find_column(market_df.columns, ['Date', 'date'])
+                    product_col = find_column(market_df.columns, ['Reported Product Name', 'product_name'])
+                    volume_col = find_column(market_df.columns, ['Volume', 'volume'])
+                    price_col = find_column(market_df.columns, ['Unit Price', 'unit_price'])
+                    origin_col = find_column(market_df.columns, ['Origin Country', 'origin_country'])
+                    export_col = find_column(market_df.columns, ['Export Country', 'export_country', '수출국']) # <-- 요청 사항 반영
+                    importer_col = find_column(market_df.columns, ['Raw Importer Name', 'importer_name'])
+                    exporter_col = find_column(market_df.columns, ['Exporter', 'exporter'])
 
+                    rename_dict = {}
+                    if date_col: rename_dict[date_col] = 'date'
+                    if product_col: rename_dict[product_col] = 'product_name'
+                    if volume_col: rename_dict[volume_col] = 'volume'
+                    if price_col: rename_dict[price_col] = 'unit_price'
+                    if origin_col: rename_dict[origin_col] = 'origin_country'
+                    if export_col: rename_dict[export_col] = 'export_country' # <-- 요청 사항 반영
+                    if importer_col: rename_dict[importer_col] = 'importer_name'
+                    if exporter_col: rename_dict[exporter_col] = 'Exporter'
+
+                    if not importer_col: # Handle manual input
+                        market_df['importer_name'] = customer_name_selection 
+                    
                     market_df.rename(columns=rename_dict, inplace=True)
+                    # --- [수정 1] 끝 ---
+
                     market_df['date'] = pd.to_datetime(market_df['date'])
                     market_df['year_month'] = market_df['date'].dt.to_period('M')
                     market_df['year'] = market_df['date'].dt.year
                     market_df['quarter'] = market_df['date'].dt.quarter
                     
-                    # --- [수정 2] 필수 컬럼에 'export_country' 추가 ---
-                    required_market_cols = ['importer_name', 'product_name', 'volume', 'unit_price']
-                    if 'Exporter' in market_df.columns: required_market_cols.append('Exporter')
-                    if 'origin_country' in market_df.columns: required_market_cols.append('origin_country')
-                    if 'export_country' in market_df.columns: required_market_cols.append('export_country') # <-- 요청 사항
+                    # --- [수정 2] 필수 컬럼 검증 로직 수정 ---
+                    required_market_cols = ['date', 'importer_name', 'product_name', 'volume', 'unit_price', 'Exporter', 'origin_country', 'export_country']
                     
                     # 필수 컬럼 누락 시 중지
                     missing_cols = [col for col in required_market_cols if col not in market_df.columns]
                     if missing_cols:
-                        st.error(f"필수 컬럼이 누락되었습니다: {', '.join(missing_cols)}. 'Export Country' 컬럼이 있는지 확인해주세요.")
+                        st.error(f"필수 컬럼이 누락되었습니다: {', '.join(missing_cols)}. 'Export Country' 등의 컬럼이 파일에 포함되어 있는지 확인해주세요.")
                         st.stop()
-
+                    
+                    # [수정 3] dropna도 수정된 필수 컬럼 리스트로 수행
                     market_df = market_df.dropna(subset=required_market_cols)
+                    # --- [수정 2 & 3] 끝 ---
+
                     market_df = remove_outliers_iqr(market_df, 'unit_price')
                     
                     lowess_results = sm.nonparametric.lowess(market_df['unit_price'], market_df['volume'], frac=0.5)
